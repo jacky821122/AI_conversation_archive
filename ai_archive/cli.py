@@ -103,6 +103,20 @@ def cmd_search_dense(args) -> None:
         print(f"    └ {r['conv_id']} #msg {r['msg_start']}–{r['msg_end']}")
 
 
+def cmd_ask(args) -> None:
+    """混合檢索 → Claude 作答附出處（會送檢索片段到 API）。"""
+    from . import rag
+    res = rag.ask(args.question, out_dir=args.out,
+                  model=args.model or rag.DEFAULT_MODEL, top_k=args.top_k)
+    print(res["answer"])
+    print()
+    print(f"— 出處（{res['model']}）—")
+    for s in res["sources"]:
+        print(f"  [{s['n']}] {s['platform']:<7} {_fmt_time(s['time'])} "
+              f"{s['title'] or '（無標題）'}")
+        print(f"      └ {s['conv_id']} #msg {s['msg_start']}–{s['msg_end']}")
+
+
 def cmd_web(args) -> None:
     # 以環境變數把 db 路徑傳給 api.py，再啟動 uvicorn
     os.environ["AI_ARCHIVE_DB"] = os.path.abspath(
@@ -146,6 +160,13 @@ def main(argv=None) -> None:
     pv.add_argument("query")
     pv.add_argument("--limit", type=int, default=8)
     pv.set_defaults(func=cmd_search_dense)
+
+    pa = sub.add_parser("ask", help="RAG 問答（本地檢索 → LLM 作答附出處）")
+    pa.add_argument("question")
+    pa.add_argument("--model", default=None,
+                    help="生成模型 (預設讀 .env 的 AGNES_MODEL，agnes-2.0-flash)")
+    pa.add_argument("--top-k", type=int, default=8, help="餵給 LLM 的片段數")
+    pa.set_defaults(func=cmd_ask)
 
     pw = sub.add_parser("web", help="啟動 localhost web 查找介面")
     pw.add_argument("--host", default="127.0.0.1")

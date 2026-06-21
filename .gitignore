@@ -2,6 +2,9 @@
 data/
 out/
 
+# 金鑰 —— 只追蹤 .env.example
+.env
+
 # Node / 前端 build 產物
 web/node_modules/
 web/dist/
