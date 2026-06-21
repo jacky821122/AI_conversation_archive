@@ -23,12 +23,12 @@ DEFAULT_MODEL = os.environ.get("AGNES_MODEL", "agnes-2.0-flash")
 DEFAULT_BASE_URL = os.environ.get("AGNES_BASE_URL", "https://apihub.agnes-ai.com/v1")
 RRF_K = 60  # RRF 常數，弱化排名靠後者的影響
 
-_SYSTEM = """你是使用者「第二大腦」的問答助手。下面提供的「資料片段」全部出自\
+_SYSTEM = """你是使用者的資料整理助手。下面提供的「資料片段」全部出自\
 使用者本人過去與各家 AI（ChatGPT／Grok／Gemini）的對話紀錄，是他的想法、語氣與\
 知識的存底。
 
 規則：
-- 只根據提供的片段回答，用繁體中文。
+- 只根據提供的片段回答，用台灣繁體中文。
 - 在引用具體內容處標註出處編號，例如 [1]、[2]（對應片段編號）。
 - 片段不足以回答時，明說「依現有紀錄無法確定」，不要編造。
 - 若使用者問的是「我之前怎麼想／說過什麼」，以第一人稱整理他的觀點。"""
@@ -63,15 +63,21 @@ def _fts_chunk_ids(archive_db: str, vectors_db: str, query: str,
 
 
 def retrieve(question: str, out_dir: str = "out", top_k: int = 8,
-             dense_k: int = 20, fts_k: int = 20) -> list[dict]:
-    """混合檢索：回傳融合後 top_k 個 chunk（含 meta），附 rrf 分數。"""
+             dense_k: int = 20, fts_k: int = 20,
+             embedder: Embedder | None = None) -> list[dict]:
+    """混合檢索：回傳融合後 top_k 個 chunk（含 meta），附 rrf 分數。
+
+    embedder：傳入則共用（long-running server 持一份、避免每次重載模型）；
+    不傳則自建一個（CLI one-shot 路徑，跑完即退）。
+    """
     vectors_db = os.path.join(out_dir, "vectors.db")
     archive_db = os.path.join(out_dir, "archive.db")
     if not os.path.exists(vectors_db):
         raise SystemExit(f"找不到 {vectors_db}；請先 `python -m ai_archive.cli index`")
 
     meta = index.get_meta(vectors_db)
-    qvec = Embedder(meta.get("model", "BAAI/bge-m3")).encode_one(question)
+    emb = embedder or Embedder(meta.get("model", "BAAI/bge-m3"))
+    qvec = emb.encode_one(question)
     dense_hits = index.search(vectors_db, qvec, top_k=dense_k)
     dense_ids = [h["id"] for h in dense_hits]
     fts_ids = _fts_chunk_ids(archive_db, vectors_db, question, fts_k)
@@ -159,9 +165,13 @@ def build_context(chunks: list[dict]) -> str:
 
 
 def ask(question: str, out_dir: str = "out", model: str = DEFAULT_MODEL,
-        top_k: int = 8, max_tokens: int = 4096) -> dict:
-    """檢索 → 餵生成端（OpenAI 相容）作答。回傳 {answer, sources, model}。"""
-    chunks = retrieve(question, out_dir=out_dir, top_k=top_k)
+        top_k: int = 8, max_tokens: int = 4096,
+        embedder: Embedder | None = None) -> dict:
+    """檢索 → 餵生成端（OpenAI 相容）作答。回傳 {answer, sources, model}。
+
+    embedder：傳入則沿用（server 持有的常駐模型）；不傳則 retrieve 自建。
+    """
+    chunks = retrieve(question, out_dir=out_dir, top_k=top_k, embedder=embedder)
     if not chunks:
         return {"answer": "依現有紀錄找不到相關內容。", "sources": [], "model": model}
 

@@ -32,6 +32,7 @@ export default function App() {
           <nav className="hidden gap-4 font-mono text-xs sm:flex">
             <TopLink to="/" label="總覽" />
             <TopLink to="/browse" label="瀏覽" />
+            <TopLink to="/ask" label="館長" />
           </nav>
 
           <form onSubmit={onSubmit} className="relative ml-auto w-full max-w-sm">

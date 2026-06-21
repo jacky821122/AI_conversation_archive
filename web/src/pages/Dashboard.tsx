@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
+import { Library } from "lucide-react";
 import { api, platformMeta, PLATFORMS, fmtMonth } from "../lib/api";
 import MonthChart from "../components/MonthChart";
 import MonthList from "../components/MonthList";
@@ -44,6 +45,14 @@ export default function Dashboard() {
             </span>
           ))}
         </div>
+
+        <Link
+          to="/ask"
+          className="mt-6 inline-flex items-center gap-2 rounded-full border border-ink bg-ink px-5 py-2.5 font-mono text-xs text-paper transition hover:opacity-90"
+        >
+          <Library className="h-4 w-4" />
+          問問館長
+        </Link>
       </section>
 
       {/* Signature：可點擊的思緒時間軸（桌面圖表 / 手機清單） */}

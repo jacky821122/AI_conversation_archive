@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import SearchResults from "./pages/SearchResults";
 import Browse from "./pages/Browse";
 import ConversationView from "./pages/ConversationView";
+import Ask from "./pages/Ask";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 60_000, refetchOnWindowFocus: false } },
@@ -22,6 +23,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route index element={<Dashboard />} />
             <Route path="search" element={<SearchResults />} />
             <Route path="browse" element={<Browse />} />
+            <Route path="ask" element={<Ask />} />
             <Route path="c/:id" element={<ConversationView />} />
           </Route>
         </Routes>

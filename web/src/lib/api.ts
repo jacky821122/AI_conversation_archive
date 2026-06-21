@@ -40,11 +40,58 @@ export interface Conversation extends ConvSummary {
   messages: Message[];
 }
 
+export interface AskSource {
+  n: number;
+  platform: Platform;
+  title: string | null;
+  time: number | null;
+  conv_id: string;
+  msg_start: number;
+  msg_end: number;
+}
+
+export interface AskResponse {
+  answer: string;
+  sources: AskSource[];
+  model: string;
+}
+
+export interface ModelStatus {
+  loaded: boolean;
+  model: string | null;
+  device: string | null;
+}
+
+// HTTP 狀態碼帶在錯誤上，讓呼叫端能分辨 401（token 錯）/409（模型未載）/503（未啟用）。
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
 async function get<T>(url: string): Promise<T> {
   const res = await fetch(url);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail || `HTTP ${res.status}`);
+    throw new ApiError(res.status, body.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+async function post<T>(url: string, body?: unknown, token?: string): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (token) headers["X-Ask-Token"] = token;
+  const res = await fetch(url, {
+    method: "POST",
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, b.detail || `HTTP ${res.status}`);
   }
   return res.json();
 }
@@ -81,6 +128,15 @@ export const api = {
 
   conversation: (id: string) =>
     get<Conversation>(`/api/conversations/${encodeURIComponent(id)}`),
+
+  // ---- Phase E：RAG 問答（需 token；模型生命週期手動控制）----
+  modelStatus: () => get<ModelStatus>("/api/model/status"),
+  modelLoad: (token: string) =>
+    post<ModelStatus>("/api/model/load", undefined, token),
+  modelRelease: (token: string) =>
+    post<ModelStatus>("/api/model/release", undefined, token),
+  ask: (question: string, token: string, topK = 8) =>
+    post<AskResponse>("/api/ask", { question, top_k: topK }, token),
 };
 
 // ---- 平台外觀（color 為資料色，承載「哪個 AI」語意）----
