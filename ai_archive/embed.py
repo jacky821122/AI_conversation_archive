@@ -12,9 +12,15 @@
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 from typing import Iterator
+
+# 強制離線載入 bge-m3：模型已快取，索引/問答全程不碰 HF Hub（連 metadata
+# 查詢都不發），守住「私人資料只有檢索片段才送 API」的隱私邊界。要更新模型時
+# 以環境變數覆蓋：HF_HUB_OFFLINE=0 跑一次即可。
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
 
 from .schema import Conversation
 
