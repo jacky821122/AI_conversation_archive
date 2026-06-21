@@ -1,0 +1,15 @@
+# 私人對話原始資料與衍生產物 —— 絕對不上 GitHub
+data/
+out/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
