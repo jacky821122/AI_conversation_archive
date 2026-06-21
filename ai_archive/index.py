@@ -57,9 +57,14 @@ def _pack(vec: np.ndarray) -> bytes:
 
 
 def build(jsonl_path: str, db_path: str, model_name: str = DEFAULT_MODEL,
-          batch_size: int = 32) -> dict:
-    """(重)建向量索引；冪等：整庫重寫。回傳統計。"""
-    chunks: list[Chunk] = list(chunk_all(read_jsonl(jsonl_path)))
+          batch_size: int = 32, conversations=None) -> dict:
+    """(重)建向量索引；冪等：整庫重寫。回傳統計。
+
+    conversations 可傳入已套 overlay 的對話（Gemini session 還原）；None 則直接讀
+    raw jsonl。
+    """
+    convs = conversations if conversations is not None else read_jsonl(jsonl_path)
+    chunks: list[Chunk] = list(chunk_all(convs))
     if not chunks:
         raise SystemExit(f"{jsonl_path} 沒有可用內容；請先 ingest")
 
@@ -72,6 +77,9 @@ def build(jsonl_path: str, db_path: str, model_name: str = DEFAULT_MODEL,
 
     con = sqlite3.connect(db_path)
     try:
+        # 先載入 sqlite-vec：DROP 既有的 vec0 虛擬表(vec_chunks)需要模組已載入，
+        # 否則重建時 "DROP TABLE vec_chunks" 會報 no such module: vec0。
+        has_vec = _try_load_vec(con)
         con.executescript(
             "DROP TABLE IF EXISTS vec_chunks;"
             "DROP TABLE IF EXISTS chunks;"
@@ -88,7 +96,6 @@ def build(jsonl_path: str, db_path: str, model_name: str = DEFAULT_MODEL,
             ],
         )
 
-        has_vec = _try_load_vec(con)
         if has_vec:
             con.execute(
                 f"CREATE VIRTUAL TABLE vec_chunks USING vec0("

@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 
 import numpy as np
 
-from .schema import read_jsonl
+from .schema import Conversation, read_jsonl
 
 # ── 可調參數（靠 eval 調；CLI 可覆蓋部分）───────────────────────────────
 W_RECENCY = 12        # 候選：時間上最近的 W 段
@@ -364,6 +364,41 @@ def _load_cache(path: str) -> dict:
 def _save_cache(path: str, cache: dict) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(cache, f, ensure_ascii=False, indent=2)
+
+
+def apply_threads(convs, out_dir: str = "out") -> list[Conversation]:
+    """Overlay：把 Gemini fragment 依 threads.json 合併成 session Conversation，
+    非 Gemini 原樣通過。threads.json 不存在 → 全部原樣（退回未還原行為）。
+
+    供 store.build / index.build 在消費端套用，raw normalized.jsonl 不被改寫。
+    冪等：fragment id 穩定，重跑結果一致。
+    """
+    convs = list(convs)
+    path = os.path.join(out_dir, "threads.json")
+    if not os.path.exists(path):
+        return convs
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    by_id = {c.id: c for c in convs}
+    used: set[str] = set()
+    merged: list[Conversation] = []
+    for t in data.get("threads", []):
+        members = [by_id[fid] for fid in t["fragment_ids"] if fid in by_id]
+        if not members:
+            continue
+        msgs = []
+        for m in members:
+            msgs.extend(m.messages)
+            used.add(m.id)
+        times = [m.create_time for m in members if m.create_time]
+        merged.append(Conversation(
+            id=t["thread_id"], platform="gemini", title=members[0].title,
+            create_time=min(times) if times else None,
+            update_time=max(times) if times else None,
+            messages=msgs,
+        ))
+    passthrough = [c for c in convs if c.id not in used]
+    return merged + passthrough
 
 
 def load_threads(out_dir: str = "out") -> dict:

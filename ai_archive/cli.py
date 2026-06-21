@@ -32,10 +32,17 @@ def cmd_ingest(args) -> None:
 
     platforms = args.platforms or list(REGISTRY)
     convs = list(parse_all(args.data, platforms))
-    n = write_jsonl(convs, jsonl)
-    st = store.build(iter(convs), db)
+    n = write_jsonl(convs, jsonl)  # raw fragments，永不被 overlay 改寫
 
-    print(f"✓ 正規化 {n} 段對話 → {jsonl}")
+    # overlay：若已有 threads.json，把 Gemini fragment 合併成 session 再建庫
+    from . import stitch
+    view = stitch.apply_threads(convs, args.out)
+    threaded = len(view) != len(convs)
+    st = store.build(iter(view), db)
+
+    print(f"✓ 正規化 {n} 段對話（raw）→ {jsonl}")
+    if threaded:
+        print(f"✓ 套用 Gemini session 還原（threads.json）→ {len(view)} 段")
     print(f"✓ 建立資料庫 → {db}")
     print(f"  訊息數: {st['messages']}")
     print("  各平台對話數:")
@@ -68,13 +75,17 @@ def cmd_stats(args) -> None:
 
 
 def cmd_index(args) -> None:
-    from . import index
+    from . import index, stitch
+    from .schema import read_jsonl
     os.makedirs(args.out, exist_ok=True)
     jsonl = os.path.join(args.out, "normalized.jsonl")
     if not os.path.exists(jsonl):
         raise SystemExit(f"找不到 {jsonl}；請先執行 ingest")
     vdb = os.path.join(args.out, "vectors.db")
-    st = index.build(jsonl, vdb, model_name=args.model, batch_size=args.batch_size)
+    # overlay：有 threads.json 就用還原後的 session 來分塊/向量化
+    convs = stitch.apply_threads(read_jsonl(jsonl), args.out)
+    st = index.build(jsonl, vdb, model_name=args.model, batch_size=args.batch_size,
+                     conversations=convs)
     print(f"✓ 建立向量索引 → {vdb}")
     print(f"  chunk 數: {st['n_chunks']} (來自 {st['n_convs']} 段對話)")
     print(f"  維度: {st['dim']} | 後端: {st['backend']}")
