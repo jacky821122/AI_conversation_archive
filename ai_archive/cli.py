@@ -117,6 +117,49 @@ def cmd_ask(args) -> None:
         print(f"      └ {s['conv_id']} #msg {s['msg_start']}–{s['msg_end']}")
 
 
+def _parse_date(s: str | None) -> float | None:
+    """YYYY-MM-DD（本地時區）→ epoch 秒。"""
+    if not s:
+        return None
+    dt = datetime.strptime(s, "%Y-%m-%d").astimezone()
+    return dt.timestamp()
+
+
+def cmd_stitch(args) -> None:
+    """Gemini 對話串本地還原（產 out/threads.json，不動其他資料）。"""
+    from . import stitch
+    since, until = _parse_date(args.since), _parse_date(args.until)
+
+    if args.report:
+        print(stitch.report(args.out))
+        return
+    if args.dump_slice:
+        print(stitch.dump_slice(args.out, since, until))
+        return
+    if args.eval:
+        m = stitch.evaluate(args.out, args.eval, since, until)
+        print(f"已標 fragment: {m['n_labeled']}（gold {m['n_gold_threads']} 串）")
+        print(f"連結 precision: {m['precision']:.3f}  recall: {m['recall']:.3f}  "
+              f"f1: {m['f1']:.3f}")
+        print(f"過併 pair: {m['over_merge_pairs']}  漏併 pair: {m['under_merge_pairs']}")
+        return
+
+    if args.method == "timegap":
+        res = stitch.build_timegap(out_dir=args.out, gap_min=args.gap_min)
+        print(f"✓ {res['n_fragments']} fragment → {res['n_threads']} 串 → {res['path']}")
+        print(f"  方法: 時間 gap（門檻 {args.gap_min} 分，deterministic、零 LLM）")
+        return
+
+    res = stitch.build(out_dir=args.out, model=args.model,
+                       window=args.window, top_k=args.top_k,
+                       sim_hi=args.sim_hi, sim_med=args.sim_med, sim_lo=args.sim_lo)
+    st = res["stats"]
+    print(f"✓ {res['n_fragments']} fragment → {res['n_threads']} 串 → {res['path']}")
+    print(f"  規則自動接 {st['rule_link']} / 自動拒 {st['rule_new']}")
+    print(f"  LLM 審判 {st['llm_calls']} 次（快取命中 {st['cache_hits']}）"
+          f"→ 接 {st['llm_link']} / 拒 {st['llm_new']}")
+
+
 def cmd_web(args) -> None:
     # 以環境變數把 db 路徑傳給 api.py，再啟動 uvicorn
     os.environ["AI_ARCHIVE_DB"] = os.path.abspath(
@@ -167,6 +210,24 @@ def main(argv=None) -> None:
                     help="生成模型 (預設讀 .env 的 AGNES_MODEL，agnes-2.0-flash)")
     pa.add_argument("--top-k", type=int, default=8, help="餵給 LLM 的片段數")
     pa.set_defaults(func=cmd_ask)
+
+    pst = sub.add_parser("stitch", help="Gemini 對話串本地還原 (產 out/threads.json)")
+    pst.add_argument("--report", action="store_true", help="印人讀提案（讀現有 threads.json）")
+    pst.add_argument("--dump-slice", action="store_true", help="印時間切片 fragment 供標 gold")
+    pst.add_argument("--eval", metavar="GOLD", help="用 gold 檔算連結 precision/recall")
+    pst.add_argument("--since", help="切片起 YYYY-MM-DD（含）")
+    pst.add_argument("--until", help="切片迄 YYYY-MM-DD（不含）")
+    pst.add_argument("--method", choices=["timegap", "semantic"], default="timegap",
+                     help="timegap=時間 gap 切 session（預設、零 LLM）；semantic=embedding+LLM")
+    pst.add_argument("--gap-min", type=float, default=60.0,
+                     help="timegap 門檻：相鄰 gap 超過幾分鐘算新 session（預設 60，寧漏不過）")
+    pst.add_argument("--model", default=None, help="LLM 審判模型（預設 .env 的 AGNES_MODEL）")
+    pst.add_argument("--window", type=int, default=12, help="候選 recency window")
+    pst.add_argument("--top-k", type=int, default=6, help="每段保留候選數")
+    pst.add_argument("--sim-hi", type=float, default=0.75)
+    pst.add_argument("--sim-med", type=float, default=0.60)
+    pst.add_argument("--sim-lo", type=float, default=0.45)
+    pst.set_defaults(func=cmd_stitch)
 
     pw = sub.add_parser("web", help="啟動 localhost web 查找介面")
     pw.add_argument("--host", default="127.0.0.1")

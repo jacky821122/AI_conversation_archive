@@ -108,6 +108,41 @@ def retrieve(question: str, out_dir: str = "out", top_k: int = 8,
     return out
 
 
+def complete(messages: list[dict], model: str = DEFAULT_MODEL,
+             max_tokens: int = 4096, temperature: float | None = None,
+             timeout: float | None = None, max_retries: int = 2) -> str:
+    """呼叫 OpenAI 相容生成端（預設 agnes），回傳回覆文字。
+
+    集中處理 .env 載入 / 金鑰 / base_url，供 RAG 作答與 stitch 的 LLM 審判共用。
+    這是「私人資料送生成端」的唯一出口；呼叫方須自負只送該送的內容。
+    """
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()  # 載入專案根 .env（金鑰/base_url/模型）
+    except ImportError:
+        pass
+    try:
+        from openai import OpenAI
+    except ImportError:
+        raise SystemExit("需要 openai 套件：pip install -r requirements-rag.txt")
+
+    api_key = os.environ.get("AGNES_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise SystemExit("未設定 AGNES_API_KEY（檢索片段才會送生成端；見 .env.example）")
+    base_url = os.environ.get("AGNES_BASE_URL", DEFAULT_BASE_URL)
+
+    client_kwargs: dict = {"api_key": api_key, "base_url": base_url,
+                           "max_retries": max_retries}
+    if timeout is not None:
+        client_kwargs["timeout"] = timeout
+    client = OpenAI(**client_kwargs)
+    kwargs: dict = {"model": model, "max_tokens": max_tokens, "messages": messages}
+    if temperature is not None:
+        kwargs["temperature"] = temperature
+    resp = client.chat.completions.create(**kwargs)
+    return resp.choices[0].message.content or ""
+
+
 def _format_time(t: float | None) -> str:
     if not t:
         return "日期不明"
@@ -130,34 +165,17 @@ def ask(question: str, out_dir: str = "out", model: str = DEFAULT_MODEL,
     if not chunks:
         return {"answer": "依現有紀錄找不到相關內容。", "sources": [], "model": model}
 
-    try:
-        from dotenv import load_dotenv
-        load_dotenv()  # 載入專案根 .env（金鑰/base_url/模型）
-    except ImportError:
-        pass
-    try:
-        from openai import OpenAI
-    except ImportError:
-        raise SystemExit("需要 openai 套件：pip install -r requirements-rag.txt")
-
-    api_key = os.environ.get("AGNES_API_KEY") or os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise SystemExit("未設定 AGNES_API_KEY（檢索片段才會送生成端；見 .env.example）")
-    base_url = os.environ.get("AGNES_BASE_URL", DEFAULT_BASE_URL)
-
     context = build_context(chunks)
     user_msg = f"資料片段：\n\n{context}\n\n---\n\n問題：{question}"
 
-    client = OpenAI(api_key=api_key, base_url=base_url)
-    resp = client.chat.completions.create(
-        model=model,
-        max_tokens=max_tokens,
-        messages=[
+    answer = complete(
+        [
             {"role": "system", "content": _SYSTEM},
             {"role": "user", "content": user_msg},
         ],
+        model=model,
+        max_tokens=max_tokens,
     )
-    answer = resp.choices[0].message.content or ""
     sources = [
         {"n": i, "platform": c["platform"], "title": c.get("title"),
          "time": c.get("time"), "conv_id": c["conv_id"],
