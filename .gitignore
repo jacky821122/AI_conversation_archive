@@ -5,6 +5,9 @@ out/
 # 金鑰 —— 只追蹤 .env.example
 .env
 
+# 私密計畫／進度檔（source of truth，含個人脈絡，不公開）
+PLAN.local.md
+
 # Node / 前端 build 產物
 web/node_modules/
 web/dist/
