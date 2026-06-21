@@ -92,18 +92,27 @@ def api_conversation(conv_id: str) -> dict:
 
 
 # ---- serve 前端（build 後才掛）----
+# index.html 一律 no-cache，讓瀏覽器每次都重新驗證、抓到新 build 引用的 hash 資產
+# （否則行動 Safari 會卡在舊的 index.html → 載入舊 JS）。assets 為 hash 檔名，可長快取。
+_NO_CACHE = {"Cache-Control": "no-cache, no-store, must-revalidate"}
+
+
+def _index_response() -> FileResponse:
+    return FileResponse(os.path.join(DIST_DIR, "index.html"), headers=_NO_CACHE)
+
+
 if os.path.isdir(DIST_DIR):
     app.mount("/assets", StaticFiles(directory=os.path.join(DIST_DIR, "assets")),
               name="assets")
 
     @app.get("/")
     def _index() -> FileResponse:
-        return FileResponse(os.path.join(DIST_DIR, "index.html"))
+        return _index_response()
 
     @app.get("/{full_path:path}")
     def _spa(full_path: str) -> FileResponse:
         # SPA 前端路由 fallback：非 /api 的都回 index.html
         candidate = os.path.join(DIST_DIR, full_path)
         if full_path and os.path.isfile(candidate):
-            return FileResponse(candidate)
-        return FileResponse(os.path.join(DIST_DIR, "index.html"))
+            return FileResponse(candidate, headers=_NO_CACHE)
+        return _index_response()

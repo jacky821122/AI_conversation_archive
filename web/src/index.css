@@ -28,6 +28,10 @@
   --color-chatgpt: #0e8a6d;
   --color-grok: #44403c;
   --color-gemini: #2f6df0;
+
+  /* 程式碼區塊（亮色）：柔和暖色，避免大黑/大白跳色 */
+  --color-code-bg: #f1ece2;
+  --color-code-ink: #46413a;
 }
 
 /* ── 深色覆寫（覆蓋同名變數，所有 bg-paper/text-ink 等自動翻轉）── */
@@ -45,6 +49,9 @@
   --color-chatgpt: #1bb892;
   --color-grok: #a39a8d;
   --color-gemini: #6da4ff;
+
+  --color-code-bg: #27231d;
+  --color-code-ink: #d6cfc2;
 }
 
 html {
@@ -69,6 +76,32 @@ body {
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--color-faint);
+}
+
+/* ── Markdown 程式碼樣式（直接控制，避開 prose 的主題翻轉）── */
+.md :not(pre) > code {
+  background: var(--color-code-bg);
+  color: var(--color-accent);
+  padding: 0.1em 0.35em;
+  border-radius: 0.25rem;
+  font-size: 0.85em;
+  font-weight: 500;
+}
+.md :not(pre) > code::before,
+.md :not(pre) > code::after {
+  content: "" !important;
+}
+.md pre {
+  background: var(--color-code-bg);
+  color: var(--color-code-ink);
+  border: 1px solid var(--color-line);
+  border-radius: 0.5rem;
+}
+.md pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font-weight: 400;
 }
 
 @media (prefers-reduced-motion: reduce) {
