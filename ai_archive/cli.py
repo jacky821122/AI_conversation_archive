@@ -45,7 +45,7 @@ def cmd_ingest(args) -> None:
 
 def cmd_search(args) -> None:
     db = os.path.join(args.out, "archive.db")
-    rows = store.search(db, args.query, args.limit)
+    rows = store.search(db, args.query, limit=args.limit)
     if not rows:
         print("（無命中）")
         return
@@ -65,6 +65,42 @@ def cmd_stats(args) -> None:
     print(f"訊息總數: {st['messages']}")
     print("各平台:", dict(st["per_platform"]))
     print("各角色:", dict(st["roles"]))
+
+
+def cmd_index(args) -> None:
+    from . import index
+    os.makedirs(args.out, exist_ok=True)
+    jsonl = os.path.join(args.out, "normalized.jsonl")
+    if not os.path.exists(jsonl):
+        raise SystemExit(f"找不到 {jsonl}；請先執行 ingest")
+    vdb = os.path.join(args.out, "vectors.db")
+    st = index.build(jsonl, vdb, model_name=args.model, batch_size=args.batch_size)
+    print(f"✓ 建立向量索引 → {vdb}")
+    print(f"  chunk 數: {st['n_chunks']} (來自 {st['n_convs']} 段對話)")
+    print(f"  維度: {st['dim']} | 後端: {st['backend']}")
+
+
+def cmd_search_dense(args) -> None:
+    """語意（dense）檢索：不花 API 錢，純看本地向量檢索品質。"""
+    from . import index
+    from .embed import Embedder
+    vdb = os.path.join(args.out, "vectors.db")
+    if not os.path.exists(vdb):
+        raise SystemExit(f"找不到 {vdb}；請先執行 index")
+    meta = index.get_meta(vdb)
+    qvec = Embedder(meta.get("model", "BAAI/bge-m3")).encode_one(args.query)
+    rows = index.search(vdb, qvec, top_k=args.limit)
+    if not rows:
+        print("（無命中）")
+        return
+    for r in rows:
+        snippet = r["text"].replace("\n", " ")
+        if len(snippet) > 140:
+            snippet = snippet[:140] + "…"
+        print(f"[{r['score']:.3f}] [{r['platform']:<7} {_fmt_time(r['time'])}] "
+              f"{r['title']}")
+        print(f"    {snippet}")
+        print(f"    └ {r['conv_id']} #msg {r['msg_start']}–{r['msg_end']}")
 
 
 def cmd_web(args) -> None:
@@ -100,6 +136,16 @@ def main(argv=None) -> None:
 
     pt = sub.add_parser("stats", help="資料庫統計")
     pt.set_defaults(func=cmd_stats)
+
+    px = sub.add_parser("index", help="建向量索引 (Phase B，本地 bge-m3)")
+    px.add_argument("--model", default="BAAI/bge-m3")
+    px.add_argument("--batch-size", type=int, default=32)
+    px.set_defaults(func=cmd_index)
+
+    pv = sub.add_parser("search-dense", help="語意檢索 (本地向量，不花 API)")
+    pv.add_argument("query")
+    pv.add_argument("--limit", type=int, default=8)
+    pv.set_defaults(func=cmd_search_dense)
 
     pw = sub.add_parser("web", help="啟動 localhost web 查找介面")
     pw.add_argument("--host", default="127.0.0.1")

@@ -1,0 +1,6 @@
+# Phase B — RAG（本地 embedding + 向量檢索）依賴
+# 地基本身仍純 stdlib；這些只在 index / search-dense / ask 指令才需要。
+sentence-transformers   # bge-m3 本地向量化（會連帶安裝 torch，CPU 即可）
+sqlite-vec              # 選配：向量 ANN 加速；缺了會自動 fallback 到 numpy 暴力 cosine
+numpy                   # 暴力 cosine fallback 與向量打包
+anthropic               # 第 3 步 `ask` 才用到（把檢索片段送 Claude 作答）
