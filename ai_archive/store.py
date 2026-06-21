@@ -79,27 +79,52 @@ def build(convs: Iterable[Conversation], db_path: str) -> dict:
         con.close()
 
 
+import re
+
+# 抽 token：ASCII 英數 run（≥2）+ CJK run（≥3，trigram 下限）
+_ASCII_RE = re.compile(r"[A-Za-z0-9]{2,}")
+_CJK_RE = re.compile(r"[一-鿿぀-ヿ]{3,}")
+
+
 def _fts_query(query: str) -> str:
     # 整串當片語，跳脫雙引號，避免 FTS5 語法字元被誤判
     return '"' + query.replace('"', '""') + '"'
 
 
+def _fts_or_query(query: str) -> str | None:
+    """把自然語言問句拆成關鍵詞，組成 OR 片語查詢（給 RAG 混合檢索用）。
+
+    整句片語比對對問句幾乎必 0 命中；改抽英文技術詞 + CJK 片段做 OR，
+    讓 FTS 補上 dense 容易稀釋掉的「精確詞命中」（如 pandas、專有名詞）。
+    無可用 token 時回 None（退回純 dense）。
+    """
+    terms = _ASCII_RE.findall(query) + _CJK_RE.findall(query)
+    if not terms:
+        return None
+    return " OR ".join('"' + t.replace('"', '""') + '"' for t in terms)
+
+
 def search(db_path: str, query: str, platform: str | None = None,
-           limit: int = 10, offset: int = 0) -> list[dict]:
+           limit: int = 10, offset: int = 0, mode: str = "phrase") -> list[dict]:
     """回傳命中訊息（含所屬對話脈絡）。
 
-    ≥3 字用 FTS5 trigram（bm25 排序）；<3 字退回 LIKE 子字串掃描。
+    mode="phrase"（預設，給 web/CLI search）：整句當片語，≥3 字走 FTS5
+    trigram、<3 字退回 LIKE。mode="or"（給 RAG）：抽關鍵詞做 OR 檢索。
     platform 可選做平台篩選。
     """
     query = query.strip()
     if not query:
         return []
+    match = _fts_or_query(query) if mode == "or" else None
+    use_fts = match is not None or (mode == "phrase" and len(query) >= 3)
+    if match is None and mode != "or":
+        match = _fts_query(query)
     con = sqlite3.connect(db_path)
     con.row_factory = sqlite3.Row
     plat_clause = " AND c.platform = ?" if platform else ""
     plat_args: tuple = (platform,) if platform else ()
     try:
-        if len(query) >= 3:
+        if use_fts:
             rows = con.execute(
                 f"""
                 SELECT m.conv_id, m.idx, m.role, m.text, m.time,
@@ -111,7 +136,7 @@ def search(db_path: str, query: str, platform: str | None = None,
                 ORDER BY bm25(messages_fts)
                 LIMIT ? OFFSET ?
                 """,
-                (_fts_query(query), *plat_args, limit, offset),
+                (match, *plat_args, limit, offset),
             ).fetchall()
         else:
             rows = con.execute(
