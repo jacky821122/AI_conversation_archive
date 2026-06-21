@@ -67,6 +67,21 @@ def cmd_stats(args) -> None:
     print("各角色:", dict(st["roles"]))
 
 
+def cmd_web(args) -> None:
+    # 以環境變數把 db 路徑傳給 api.py，再啟動 uvicorn
+    os.environ["AI_ARCHIVE_DB"] = os.path.abspath(
+        os.path.join(args.out, "archive.db"))
+    try:
+        import uvicorn
+    except ImportError:
+        raise SystemExit(
+            "需要 web 依賴：pip install -r requirements-web.txt")
+    print(f"資料庫: {os.environ['AI_ARCHIVE_DB']}")
+    print(f"啟動 web 介面 → http://{args.host}:{args.port}")
+    uvicorn.run("ai_archive.api:app", host=args.host, port=args.port,
+                reload=args.reload)
+
+
 def main(argv=None) -> None:
     p = argparse.ArgumentParser(prog="ai_archive")
     p.add_argument("--data", default=_DEFAULT_DATA, help="原始匯出資料夾 (預設: data)")
@@ -85,6 +100,12 @@ def main(argv=None) -> None:
 
     pt = sub.add_parser("stats", help="資料庫統計")
     pt.set_defaults(func=cmd_stats)
+
+    pw = sub.add_parser("web", help="啟動 localhost web 查找介面")
+    pw.add_argument("--host", default="127.0.0.1")
+    pw.add_argument("--port", type=int, default=8765)
+    pw.add_argument("--reload", action="store_true", help="開發用熱重載")
+    pw.set_defaults(func=cmd_web)
 
     args = p.parse_args(argv)
     args.func(args)

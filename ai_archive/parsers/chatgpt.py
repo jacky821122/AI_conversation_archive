@@ -19,6 +19,7 @@ import os
 from typing import Iterator
 
 from ..schema import Conversation, Message
+from ._util import clean_text
 
 _KEEP_ROLES = {"user", "assistant"}
 _KEEP_CONTENT = {"text", "multimodal_text"}
@@ -66,7 +67,7 @@ def _message_text(content: dict) -> tuple[str, list[str]]:
         elif isinstance(p, dict):
             ptr = p.get("asset_pointer") or p.get("content_type") or "attachment"
             attachments.append(str(ptr))
-    return "\n".join(texts).strip(), attachments
+    return clean_text("\n".join(texts)).strip(), attachments
 
 
 def _convert(conv: dict) -> Conversation | None:

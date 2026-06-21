@@ -1,0 +1,78 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* 以 .dark class 控制深色模式（非系統偏好） */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ── 設計 token ─────────────────────────────────────────── */
+@theme {
+  /* 標題暫與內文同字體（好看的中文襯線難找，先統一） */
+  --font-display: "IBM Plex Sans", "Microsoft JhengHei", "PingFang TC",
+    "Noto Sans TC", system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans", "Microsoft JhengHei", "PingFang TC",
+    "Noto Sans TC", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  /* 亮色（預設） */
+  --color-paper: #faf8f4;
+  --color-surface: #ffffff;
+  --color-ink: #211e1b;
+  --color-muted: #79736b;
+  --color-faint: #a8a298;
+  --color-line: #ece6dc;
+  --color-line-strong: #ddd5c8;
+  --color-accent: #6b3f5b;
+  --color-accent-soft: #f1e7ed;
+
+  /* 平台資料色（亮色） */
+  --color-chatgpt: #0e8a6d;
+  --color-grok: #44403c;
+  --color-gemini: #2f6df0;
+}
+
+/* ── 深色覆寫（覆蓋同名變數，所有 bg-paper/text-ink 等自動翻轉）── */
+.dark {
+  --color-paper: #15130f;
+  --color-surface: #1e1b16;
+  --color-ink: #ece6dc;
+  --color-muted: #a39c90;
+  --color-faint: #6f685d;
+  --color-line: #2a2620;
+  --color-line-strong: #3a352c;
+  --color-accent: #d49ec0;
+  --color-accent-soft: #2a1e26;
+
+  --color-chatgpt: #1bb892;
+  --color-grok: #a39a8d;
+  --color-gemini: #6da4ff;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.whitespace-prewrap {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-faint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

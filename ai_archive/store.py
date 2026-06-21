@@ -84,42 +84,141 @@ def _fts_query(query: str) -> str:
     return '"' + query.replace('"', '""') + '"'
 
 
-def search(db_path: str, query: str, limit: int = 10) -> list[dict]:
+def search(db_path: str, query: str, platform: str | None = None,
+           limit: int = 10, offset: int = 0) -> list[dict]:
     """回傳命中訊息（含所屬對話脈絡）。
 
     ≥3 字用 FTS5 trigram（bm25 排序）；<3 字退回 LIKE 子字串掃描。
+    platform 可選做平台篩選。
     """
     query = query.strip()
+    if not query:
+        return []
     con = sqlite3.connect(db_path)
     con.row_factory = sqlite3.Row
+    plat_clause = " AND c.platform = ?" if platform else ""
+    plat_args: tuple = (platform,) if platform else ()
     try:
         if len(query) >= 3:
             rows = con.execute(
-                """
+                f"""
                 SELECT m.conv_id, m.idx, m.role, m.text, m.time,
                        c.platform, c.title
                 FROM messages_fts f
                 JOIN messages m ON m.rowid = f.rowid
                 JOIN conversations c ON c.id = m.conv_id
-                WHERE messages_fts MATCH ?
+                WHERE messages_fts MATCH ?{plat_clause}
                 ORDER BY bm25(messages_fts)
-                LIMIT ?
+                LIMIT ? OFFSET ?
                 """,
-                (_fts_query(query), limit),
+                (_fts_query(query), *plat_args, limit, offset),
             ).fetchall()
         else:
             rows = con.execute(
-                """
+                f"""
                 SELECT m.conv_id, m.idx, m.role, m.text, m.time,
                        c.platform, c.title
                 FROM messages m
                 JOIN conversations c ON c.id = m.conv_id
-                WHERE m.text LIKE ?
-                LIMIT ?
+                WHERE m.text LIKE ?{plat_clause}
+                LIMIT ? OFFSET ?
                 """,
-                (f"%{query}%", limit),
+                (f"%{query}%", *plat_args, limit, offset),
             ).fetchall()
         return [dict(r) for r in rows]
+    finally:
+        con.close()
+
+
+def get_conversation(db_path: str, conv_id: str) -> dict | None:
+    """回傳整段對話：meta + 全部訊息（依 idx 排序）。"""
+    con = sqlite3.connect(db_path)
+    con.row_factory = sqlite3.Row
+    try:
+        c = con.execute(
+            "SELECT id, platform, title, create_time, update_time, n_messages "
+            "FROM conversations WHERE id = ?", (conv_id,)
+        ).fetchone()
+        if c is None:
+            return None
+        msgs = con.execute(
+            "SELECT idx, role, text, time FROM messages "
+            "WHERE conv_id = ? ORDER BY idx", (conv_id,)
+        ).fetchall()
+        out = dict(c)
+        out["messages"] = [dict(m) for m in msgs]
+        return out
+    finally:
+        con.close()
+
+
+def _conv_filter(platform: str | None, month: str | None) -> tuple[str, list]:
+    """組合 platform / month(YYYY-MM) 的 WHERE 子句。"""
+    clauses: list[str] = []
+    args: list = []
+    if platform:
+        clauses.append("platform = ?")
+        args.append(platform)
+    if month:
+        clauses.append(
+            "strftime('%Y-%m', create_time, 'unixepoch', 'localtime') = ?")
+        args.append(month)
+    where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+    return where, args
+
+
+def list_conversations(db_path: str, platform: str | None = None,
+                       month: str | None = None, order: str = "recent",
+                       limit: int = 30, offset: int = 0) -> list[dict]:
+    """對話層級清單（瀏覽 / 最近 / 某月）。order: recent | oldest。"""
+    con = sqlite3.connect(db_path)
+    con.row_factory = sqlite3.Row
+    where, args = _conv_filter(platform, month)
+    direction = "ASC" if order == "oldest" else "DESC"
+    try:
+        rows = con.execute(
+            f"""
+            SELECT id, platform, title, create_time, update_time, n_messages
+            FROM conversations
+            {where}
+            ORDER BY COALESCE(create_time, 0) {direction}
+            LIMIT ? OFFSET ?
+            """,
+            (*args, limit, offset),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        con.close()
+
+
+def count_conversations(db_path: str, platform: str | None = None,
+                        month: str | None = None) -> int:
+    con = sqlite3.connect(db_path)
+    where, args = _conv_filter(platform, month)
+    try:
+        return con.execute(
+            f"SELECT count(*) FROM conversations {where}", args
+        ).fetchone()[0]
+    finally:
+        con.close()
+
+
+def distribution(db_path: str) -> list[dict]:
+    """各平台 × 各 YYYY-MM 的對話計數（給儀表板月份圖）。"""
+    con = sqlite3.connect(db_path)
+    try:
+        rows = con.execute(
+            """
+            SELECT platform,
+                   strftime('%Y-%m', create_time, 'unixepoch', 'localtime') AS month,
+                   count(*) AS n
+            FROM conversations
+            WHERE create_time IS NOT NULL
+            GROUP BY platform, month
+            ORDER BY month
+            """
+        ).fetchall()
+        return [{"platform": p, "month": m, "n": n} for p, m, n in rows]
     finally:
         con.close()
 

@@ -14,7 +14,7 @@ import os
 from typing import Iterator
 
 from ..schema import Conversation, Message
-from ._util import mongo_or_epoch
+from ._util import mongo_or_epoch, clean_text
 
 
 def _convert(item: dict) -> Conversation | None:
@@ -23,7 +23,7 @@ def _convert(item: dict) -> Conversation | None:
     rows: list[tuple[float | None, Message]] = []
     for r in responses:
         rr = r.get("response") or {}
-        text = (rr.get("message") or "").strip()
+        text = clean_text(rr.get("message") or "").strip()
         if not text:
             continue
         role = "user" if rr.get("sender") == "human" else "assistant"
@@ -34,11 +34,15 @@ def _convert(item: dict) -> Conversation | None:
     # 依時間排序（None 視為 0，維持原序）
     rows.sort(key=lambda x: (x[0] is None, x[0] or 0))
     messages = [m for _, m in rows]
+    msg_times = [m.time for m in messages if m.time]
+    create_time = mongo_or_epoch(conv.get("create_time"))
+    if create_time is None and msg_times:
+        create_time = min(msg_times)  # 後備：用最早訊息時間
     return Conversation(
         id=f"grok:{conv.get('id')}",
         platform="grok",
         title=conv.get("title") or "",
-        create_time=mongo_or_epoch(conv.get("create_time")),
+        create_time=create_time,
         update_time=mongo_or_epoch(conv.get("modify_time")),
         messages=messages,
     )

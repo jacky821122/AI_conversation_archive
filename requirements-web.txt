@@ -1,0 +1,3 @@
+# Phase A.5 — localhost web 介面後端依賴（地基本身仍純 stdlib）
+fastapi
+uvicorn[standard]

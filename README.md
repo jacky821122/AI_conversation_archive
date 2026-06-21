@@ -65,9 +65,68 @@ ai_archive/
     chatgpt.py       mapping 樹線性化
     grok.py          responses → 正規化
     gemini.py        My Activity JSON → 迷你兩則對話
-  store.py           SQLite schema + FTS5(trigram) + search()
-  cli.py             ingest / search / stats
+  store.py           SQLite schema + FTS5(trigram) + search/get_conversation/...
+  api.py             FastAPI：/api/* 端點 + serve 前端 dist
+  cli.py             ingest / search / stats / web
+web/                 Vite + React + TS 前端（dist 為 build 產物，不進 git）
 ```
+
+## Phase A.5 — localhost Web 查找介面（已完成）
+
+把 CLI 查找變成好用的個人 localhost 網頁：搜尋 + 讀全文、平台篩選、瀏覽/最近清單、統計儀表板。後端 FastAPI（唯讀讀 `out/archive.db`），前端 Vite + React + TS（`web/`）。
+
+### 安裝與啟動
+
+```bash
+# 1) 後端依賴（地基本身仍純 stdlib，這是 web 額外的）
+pip install -r requirements-web.txt
+
+# 2) 前端 build（需 Node）
+cd web && npm install && npm run build && cd ..
+
+# 3) 啟動：API + 已 build 前端，單一指令
+python3 -m ai_archive.cli web          # 預設 http://127.0.0.1:8765
+```
+
+開瀏覽器到 `http://127.0.0.1:8765` 即可。資料更新後重跑 `ingest` 即生效（web 唯讀讀同一個 DB）。
+
+手動指定位址 / port：`python3 -m ai_archive.cli web --host 0.0.0.0 --port 2448`。
+
+### 當成常駐服務跑（systemd，像 immich 那樣開機自起）
+
+WSL2 已啟用 systemd。一行安裝（會問 sudo 密碼）：
+
+```bash
+bash deploy/install-service.sh
+```
+
+服務 `ai-archive` 會綁 `0.0.0.0:2448`、開機自起、掛了自動重啟。常用指令：
+
+```bash
+systemctl status ai-archive          # 看狀態
+systemctl restart ai-archive         # 改程式碼後重啟（改資料只要重跑 ingest，不用重啟）
+journalctl -u ai-archive -f          # 看日誌
+```
+
+服務檔在 `deploy/ai-archive.service`（改 port/python 路徑後重跑安裝腳本即可）。
+
+> 注意：WSL2 的 distro 只有在 Windows 有觸發時才在跑。要真正「永遠在線」，需確保 WSL 持續運行（例如 Windows 工作排程器於登入時 `wsl` 喚起），並讓你的 tailscale（跑在 Windows）能轉到 WSL 的 2448 port。
+
+### 開發模式（前後端分離、熱重載）
+
+```bash
+uvicorn ai_archive.api:app --reload --port 8000   # 後端
+cd web && npm run dev                              # 前端 :5173，proxy /api → :8000
+```
+
+### API 端點（皆唯讀）
+
+| 端點 | 說明 |
+|---|---|
+| `GET /api/stats` | 總數、各平台計數、各月份分佈 |
+| `GET /api/search?q=&platform=&limit=&offset=` | 訊息層級命中 |
+| `GET /api/conversations?platform=&order=&limit=&offset=` | 對話清單（瀏覽/最近） |
+| `GET /api/conversations/{id}` | 整段對話 |
 
 ## 接下來（尚未做）
 

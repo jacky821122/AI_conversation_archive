@@ -1,0 +1,16 @@
+[Unit]
+Description=AI Conversation Archive web UI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=jacky821122
+WorkingDirectory=/home/jacky821122/AI_conversation_archive
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/jacky821122/.anaconda3/bin/python3 -m ai_archive.cli web --host 0.0.0.0 --port 2448
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

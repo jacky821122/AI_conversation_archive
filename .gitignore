@@ -2,6 +2,11 @@
 data/
 out/
 
+# Node / 前端 build 產物
+web/node_modules/
+web/dist/
+web/.vite/
+
 # Python
 __pycache__/
 *.py[cod]
