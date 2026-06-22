@@ -103,6 +103,12 @@ body {
   padding: 0;
   font-weight: 400;
 }
+/* 寬的 display 數學式在手機上可橫向捲動，不被版面裁切（同 table 的處理）。 */
+.md .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.25rem;
+}
 
 @media (prefers-reduced-motion: reduce) {
   html {
