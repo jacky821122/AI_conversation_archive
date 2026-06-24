@@ -91,9 +91,20 @@ bash deploy/install-service.sh
 
 ```bash
 systemctl status ai-archive          # 看狀態
-systemctl restart ai-archive         # 改程式碼後重啟（改資料只要重跑 ingest）
+systemctl restart ai-archive         # 只在改「後端 Python」後需要（見下方表格）
 journalctl -u ai-archive -f          # 看日誌
 ```
+
+#### 改完東西怎麼套用（重要）
+
+服務 serve 的是 `web/dist/` **靜態產物**，不是 `web/src/` 原始碼。所以 `git pull` 下新的前端改動、
+或自己改了 `.tsx`，畫面**不會自動變**；而 `systemctl restart` 也**不會幫你 build**，重啟只對後端有意義。
+
+| 改了什麼 | 套用方式 |
+| --- | --- |
+| 前端 UI（`web/src/*`、pull 到新前端） | `cd web && npm run build` → 重整瀏覽器即生效（`dist` 檔名帶 hash，免清快取）；**不必 restart** |
+| 後端 Python（`ai_archive/*`） | `systemctl restart ai-archive` |
+| 資料（新對話） | 重跑 `ingest`（必要時 `stitch` + `index`）；web 唯讀同一個 DB，**不必 restart** |
 
 ### 開發模式（前後端分離、熱重載）
 
