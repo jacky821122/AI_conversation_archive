@@ -9,12 +9,16 @@ import { Stats, platformMeta, PLATFORMS, fmtMonth } from "../lib/api";
 
 type Row = { month: string; total: number } & Record<string, number | string>;
 
-function buildRows(distribution: Stats["distribution"]): Row[] {
+function buildRows(
+  distribution: Stats["distribution"],
+  metric: "count" | "tokens",
+): Row[] {
   const byMonth = new Map<string, Row>();
   for (const d of distribution) {
     const row = byMonth.get(d.month) ?? ({ month: d.month, total: 0 } as Row);
-    row[d.platform] = d.n;
-    row.total = (row.total as number) + d.n;
+    const v = metric === "tokens" ? d.tokens : d.n;
+    row[d.platform] = v;
+    row.total = (row.total as number) + v;
     byMonth.set(d.month, row);
   }
   return Array.from(byMonth.values()).sort((a, b) =>
@@ -34,7 +38,7 @@ function TimelineTooltip({ active, payload, label }: any) {
             <div key={p.name} className="flex items-center gap-2 font-mono text-[0.7rem]">
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: p.color }} />
               <span className="text-muted">{platformMeta[p.dataKey as keyof typeof platformMeta]?.label}</span>
-              <span className="ml-auto text-ink">{p.value}</span>
+              <span className="ml-auto text-ink">{Number(p.value).toLocaleString()}</span>
             </div>
           ))}
       </div>
@@ -67,11 +71,13 @@ function makeYearTick() {
 export default function MonthChart({
   distribution,
   onSelectMonth,
+  metric,
 }: {
   distribution: Stats["distribution"];
   onSelectMonth: (month: string) => void;
+  metric: "count" | "tokens";
 }) {
-  const data = buildRows(distribution);
+  const data = buildRows(distribution, metric);
   if (data.length === 0) {
     return <div className="font-mono text-sm text-faint">尚無時間資料</div>;
   }
