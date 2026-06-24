@@ -30,6 +30,8 @@
 - **新增平台**：只在 `ai_archive/parsers/` 加模組並在 `__init__.py` 註冊；下游（store/index/
   rag/web）全 data-driven，勿在下游 hardcode 平台。web 前端新增平台補 `web/src/lib/api.ts` 的
   `Platform`／`PLATFORMS`／`platformMeta` 即可，各頁面迴圈 PLATFORMS 自動跟上。
+- **Web UI 響應式（RWD）**：任何 Web UI 改動都要同時考慮手機版（以 iOS 為主）與桌面版的呈現與
+  操作體驗，兩者皆需驗證，勿只顧其中一種版型。
 - **Gemini overlay 在消費端**：`normalized.jsonl` 永保 raw fragment（不改寫）；`ingest`/`index`
   消費時才套 `threads.json` overlay。不要把 overlay 寫回原始檔。
 - **冪等**：`ingest` / `index` / `stitch` 重跑須覆蓋輸出、結果一致。改這些指令時維持冪等。
