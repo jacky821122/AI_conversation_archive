@@ -212,6 +212,19 @@ def api_ask(body: AskBody, x_ask_token: str | None = Header(None)) -> dict:
     return res
 
 
+@app.get("/api/plan")
+def api_plan() -> dict:
+    """唯讀回傳本機 PLAN.local.md 內容（只供本機 web 檢視）。
+
+    只讀固定檔、不吃參數 → 無 path traversal。別台機器無此檔時 exists=false。
+    """
+    path = os.path.join(_ROOT, "PLAN.local.md")
+    if not os.path.isfile(path):
+        return {"exists": False, "content": ""}
+    with open(path, encoding="utf-8") as f:
+        return {"exists": True, "content": f.read()}
+
+
 # ---- serve 前端（build 後才掛）----
 # index.html 一律 no-cache，讓瀏覽器每次都重新驗證、抓到新 build 引用的 hash 資產
 # （否則行動 Safari 會卡在舊的 index.html → 載入舊 JS）。assets 為 hash 檔名，可長快取。
