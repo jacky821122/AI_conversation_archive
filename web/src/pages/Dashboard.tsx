@@ -5,11 +5,12 @@ import { Library } from "lucide-react";
 import { api, platformMeta, PLATFORMS, fmtMonth } from "../lib/api";
 import MonthChart from "../components/MonthChart";
 import MonthList from "../components/MonthList";
+import MetricToggle, { Metric } from "../components/MetricToggle";
 import ConvListItem from "../components/ConvListItem";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [metric, setMetric] = useState<"count" | "tokens">("count");
+  const [metric, setMetric] = useState<Metric>("count");
   const stats = useQuery({ queryKey: ["stats"], queryFn: api.stats });
   const recent = useQuery({
     queryKey: ["recent"],
@@ -59,27 +60,10 @@ export default function Dashboard() {
 
       {/* Signature：可點擊的思緒時間軸（桌面圖表 / 手機清單） */}
       <section>
-        <div className="mb-2 flex items-baseline justify-between">
+        <div className="sticky top-14 z-10 -mx-5 mb-2 flex items-center justify-between border-b border-line bg-paper/85 px-5 py-2 backdrop-blur">
           <h2 className="font-display text-lg font-semibold text-ink">思緒的時間軸</h2>
           <div className="flex items-center gap-3">
-            <div className="flex rounded-full border border-line p-0.5 font-mono text-[0.7rem]">
-              <button
-                onClick={() => setMetric("count")}
-                className={`rounded-full px-2.5 py-1 transition ${
-                  metric === "count" ? "bg-ink text-paper" : "text-muted hover:text-ink"
-                }`}
-              >
-                則數
-              </button>
-              <button
-                onClick={() => setMetric("tokens")}
-                className={`rounded-full px-2.5 py-1 transition ${
-                  metric === "tokens" ? "bg-ink text-paper" : "text-muted hover:text-ink"
-                }`}
-              >
-                token
-              </button>
-            </div>
+            <MetricToggle metric={metric} onChange={setMetric} />
             <span className="hidden font-mono text-[0.7rem] text-faint sm:inline">
               點任一月份，回到那時候
             </span>

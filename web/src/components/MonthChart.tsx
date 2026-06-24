@@ -6,12 +6,13 @@ import {
   Tooltip,
 } from "recharts";
 import { Stats, platformMeta, PLATFORMS, fmtMonth } from "../lib/api";
+import { Metric } from "./MetricToggle";
 
 type Row = { month: string; total: number } & Record<string, number | string>;
 
 function buildRows(
   distribution: Stats["distribution"],
-  metric: "count" | "tokens",
+  metric: Metric,
 ): Row[] {
   const byMonth = new Map<string, Row>();
   for (const d of distribution) {
@@ -75,7 +76,7 @@ export default function MonthChart({
 }: {
   distribution: Stats["distribution"];
   onSelectMonth: (month: string) => void;
-  metric: "count" | "tokens";
+  metric: Metric;
 }) {
   const data = buildRows(distribution, metric);
   if (data.length === 0) {
