@@ -27,6 +27,9 @@ def _fmt_time(t: float | None) -> str:
 
 def cmd_ingest(args) -> None:
     os.makedirs(args.out, exist_ok=True)
+    if getattr(args, "claude_path", None):
+        os.environ["CLAUDE_PROJECTS"] = os.path.abspath(
+            os.path.expanduser(args.claude_path))
     jsonl = os.path.join(args.out, "normalized.jsonl")
     db = os.path.join(args.out, "archive.db")
 
@@ -192,9 +195,11 @@ def main(argv=None) -> None:
     p.add_argument("--out", default=_DEFAULT_OUT, help="輸出資料夾 (預設: out)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    pi = sub.add_parser("ingest", help="解析三家 → normalized.jsonl + archive.db")
+    pi = sub.add_parser("ingest", help="解析四家 → normalized.jsonl + archive.db")
     pi.add_argument("--platforms", nargs="*", choices=list(REGISTRY),
                     help="只處理指定平台 (預設全部)")
+    pi.add_argument("--claude-path", default=None,
+                    help="Claude Code 紀錄根目錄 (預設 ~/.claude/projects)")
     pi.set_defaults(func=cmd_ingest)
 
     ps = sub.add_parser("search", help="全文檢索")
