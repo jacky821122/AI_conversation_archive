@@ -30,6 +30,8 @@ def cmd_ingest(args) -> None:
     if getattr(args, "claude_path", None):
         os.environ["CLAUDE_PROJECTS"] = os.path.abspath(
             os.path.expanduser(args.claude_path))
+    if getattr(args, "claude_exclude_prompts", None):
+        os.environ["CLAUDE_EXCLUDE_PROMPTS"] = args.claude_exclude_prompts
     jsonl = os.path.join(args.out, "normalized.jsonl")
     db = os.path.join(args.out, "archive.db")
 
@@ -200,6 +202,9 @@ def main(argv=None) -> None:
                     help="只處理指定平台 (預設全部)")
     pi.add_argument("--claude-path", default=None,
                     help="Claude Code 紀錄根目錄 (預設 ~/.claude/projects)")
+    pi.add_argument("--claude-exclude-prompts", default=None,
+                    help="逗號分隔的首則 user 訊息前綴；命中者視為 headless "
+                         "噪音(cron/ping)丟棄 (也可用 CLAUDE_EXCLUDE_PROMPTS 環境變數)")
     pi.set_defaults(func=cmd_ingest)
 
     ps = sub.add_parser("search", help="全文檢索")

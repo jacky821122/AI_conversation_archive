@@ -107,6 +107,12 @@ out/threads.json       Gemini session 還原 overlay
   設定壞掉時的回應）；濾掉後若整個 session 無任何 assistant 文字，視為「問了但沒得到有用回應」
   的廢 session 一併丟棄。用 `startswith` 精準命中真 error，不會誤殺內文討論 API error 的真對話。
   網路後來恢復的 session 會保留其正常回應（只丟掉 error 那則）。
+- **排除 headless 噪音（可設定）**：headless 用法（排程／cron 餵入大段 agent system prompt、
+  warmup／healthcheck ping）會在 `~/.claude/projects` 留下大量雜訊 session，且重要輸出多在別處。
+  `CLAUDE_EXCLUDE_PROMPTS`（逗號分隔的前綴清單，或 `--claude-exclude-prompts` flag）讓「首則 user
+  訊息以任一前綴開頭」者於 parse 端整段丟棄（同 drop-trivial 那層，不寫進 raw jsonl）。**判別用內容
+  （首則訊息）而非資料夾**——同一專案目錄常混著真人手動開發與自動化 run，按資料夾一刀切會誤殺真對話。
+  預設空＝不排除（公開碼行為中性）；個人前綴清單放本機 env／`.zshrc.local`，不寫死進 repo（隱私邊界）。
 - **合成輸入照收**：user 文字一律收（含 skill 注入、`<system-reminder>`、slash command 展開）；
   prose-only 已天然濾掉不帶 text block 的 `tool_result`。日後要更精細過濾框架雜訊再擴充。
 - **範圍全域**：讀 `~/.claude/projects/` 底下所有專案，形成跨專案的第二大腦。

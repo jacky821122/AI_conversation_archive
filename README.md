@@ -34,7 +34,9 @@ data/
 ```
 
 Claude Code 不必放進 `data/` —— 直接讀本機 `~/.claude/projects/`（可用 `--claude-path` 或
-`CLAUDE_PROJECTS` 覆蓋來源）。
+`CLAUDE_PROJECTS` 覆蓋來源）。headless 用法（排程／cron 餵入 agent prompt、warmup ping）的雜訊
+session 可用 `CLAUDE_EXCLUDE_PROMPTS`（或 `--claude-exclude-prompts`）依「首則 user 訊息前綴」排除，
+個人前綴清單建議放 `~/.zshrc.local`。
 
 ## 常用指令
 
@@ -50,7 +52,8 @@ python -m ai_archive.cli web               # 啟動 localhost web 介面
 ```
 
 可選全域旗標：`--data <dir>`（預設 `data`）、`--out <dir>`（預設 `out`）。
-`ingest` 專屬：`--platforms chatgpt grok`（只處理指定平台）、`--claude-path <dir>`。
+`ingest` 專屬：`--platforms chatgpt grok`（只處理指定平台）、`--claude-path <dir>`、
+`--claude-exclude-prompts '<前綴1,前綴2>'`（依首則 user 訊息前綴排除 headless 噪音 session）。
 
 ### 完整刷新順序（含 Gemini session 還原）
 

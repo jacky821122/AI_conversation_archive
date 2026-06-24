@@ -77,11 +77,23 @@ def main():
              "message": {"role": "assistant", "content": "好了，這是答案"}},
         ])
 
+        # Session E: 首則 user 訊息命中排除前綴（headless cron/ping 噪音）→ 丟棄。
+        _write_session(root, "proj-e", "sess-e", [
+            {"type": "user", "sessionId": "sess-e",
+             "timestamp": "2026-06-24T12:00:00.000Z",
+             "message": {"role": "user", "content":
+                 "# Bot — automated run\nYou are a scheduled agent."}},
+            {"type": "assistant", "sessionId": "sess-e",
+             "timestamp": "2026-06-24T12:00:03.000Z",
+             "message": {"role": "assistant", "content": "done"}},
+        ])
+
         os.environ["CLAUDE_PROJECTS"] = root
+        os.environ["CLAUDE_EXCLUDE_PROMPTS"] = "# Bot,ping"
         convs = list(claude.parse("ignored-data-dir"))
 
     by_id = {c.id: c for c in convs}
-    # 只剩 A（正常）與 D（混雜留下）；B/C 丟棄。
+    # 只剩 A（正常）與 D（混雜留下）；B/C 丟棄，E 命中排除前綴丟棄。
     assert set(by_id) == {"claude:sess-a", "claude:sess-d"}, sorted(by_id)
     c = by_id["claude:sess-a"]
     assert c.platform == "claude", c.platform
