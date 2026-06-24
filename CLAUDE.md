@@ -11,7 +11,7 @@
 ```
 ai_archive/
   schema.py        # Conversation / Message dataclass + JSONL 讀寫
-  parsers/         # 三家 parser（chatgpt/grok/gemini）+ registry
+  parsers/         # 四家 parser（chatgpt/grok/gemini/claude）+ registry
   store.py         # SQLite + FTS5(trigram) 全文檢索；search() 支援 phrase/or 模式
   embed.py         # bge-m3 本地向量化 + 對話分塊（強制 HF_HUB_OFFLINE）
   index.py         # 建 out/vectors.db（float32 BLOB + 選配 sqlite-vec）+ dense 檢索
@@ -28,6 +28,7 @@ deploy/            # systemd 服務（port 2448）
 - **隱私邊界**：索引/向量化/檢索全在本地、零外連；只有 RAG 最終「檢索到的片段」會送生成端。`data/`、`out/`、`.env`、`PLAN.local.md` 皆 gitignored。GitHub repo 為 **public，只推程式碼**。
 - **依賴分層**：地基純 stdlib；web 用 `requirements-web.txt`；RAG 用 `requirements-rag.txt`。
 - **生成端**：RAG 走 OpenAI 相容介面，設定全在 `.env`（見 `.env.example`）。換模型/供應商＝改 `.env`，不動程式。
+- **Claude Code 紀錄**：第四平台 `claude`。直接讀本機 `~/.claude/projects/<cwd>/<sessionId>.jsonl`（一檔=一 session），不經 `data/`；可用 `ingest --claude-path <dir>` 或 `CLAUDE_PROJECTS` 環境變數覆蓋。prose only（只留 text，丟 thinking/tool_use/tool_result），一 session 一對話、丟掉無 user 文字的 trivial session。`id=claude:<sessionId>`，冪等。
 - **中文檢索**：FTS5 用 trigram tokenizer（連續中文可比對）。
 - **Gemini session 還原**：Gemini 匯出無 thread 資訊、被切成 1問1答。`stitch` 用時間 gap（預設 60 分）把連續坐席還原成 session，產 `out/threads.json`。`normalized.jsonl` 永保 raw fragment；`ingest`/`index` 在**消費端**自動套 overlay（有 threads.json 就把 Gemini fragment 合併成 session），故 archive.db/vectors.db/web/stats 都反映 session（Gemini 394→173），原始資料不被改寫。
 - **冪等**：`ingest` / `index` / `stitch` 重跑覆蓋輸出、結果一致。

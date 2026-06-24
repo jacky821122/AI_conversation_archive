@@ -1,6 +1,6 @@
 # AI Conversation Archive
 
-把 ChatGPT / Grok / Gemini 的對話匯出統一成一份個人語料庫，最終目標：
+把 ChatGPT / Grok / Gemini / Claude Code 的對話匯出統一成一份個人語料庫，最終目標：
 
 1. **RAG 第二大腦** — 用自然語言問「我之前對 X 的想法」。
 2. **persona 萃取** — 從海量對話提煉個人語氣/個性/思考模式。
@@ -65,6 +65,7 @@ ai_archive/
     chatgpt.py       mapping 樹線性化
     grok.py          responses → 正規化
     gemini.py        My Activity JSON → 迷你兩則對話
+    claude.py        ~/.claude/projects/*.jsonl → session 對話（prose only）
   store.py           SQLite schema + FTS5(trigram) + search/get_conversation/...
   api.py             FastAPI：/api/* 端點 + serve 前端 dist
   cli.py             ingest / search / stats / web
