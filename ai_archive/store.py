@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import math
 import sqlite3
 from typing import Iterable
 
@@ -84,6 +85,22 @@ import re
 # 抽 token：ASCII 英數 run（≥2）+ CJK run（≥3，trigram 下限）
 _ASCII_RE = re.compile(r"[A-Za-z0-9]{2,}")
 _CJK_RE = re.compile(r"[一-鿿぀-ヿ]{3,}")
+
+# token 估算用 CJK 類（與檢索用 _CJK_RE 同範圍：中日韓常用區）。
+_TOKEN_CJK_RE = re.compile(r"[一-鿿぀-ヿ]")
+
+
+def estimate_tokens(text: str) -> int:
+    """純 stdlib 啟發式 token 估算：CJK 1 字 ≈ 1 token，其餘 4 字元 ≈ 1 token。
+
+    精準度不重要——跨平台、跨 user/assistant 用同一把尺即公平。供時間軸的
+    token 視角彙總用。
+    """
+    if not text:
+        return 0
+    cjk = len(_TOKEN_CJK_RE.findall(text))
+    rest = len(text) - cjk
+    return cjk + math.ceil(rest / 4)
 
 
 def _fts_query(query: str) -> str:
