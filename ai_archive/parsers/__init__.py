@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Callable, Iterator
 
 from ..schema import Conversation
-from . import chatgpt, grok, gemini
+from . import chatgpt, grok, gemini, claude
 
 ParseFn = Callable[[str], Iterator[Conversation]]
 
@@ -17,6 +17,7 @@ REGISTRY: dict[str, ParseFn] = {
     "chatgpt": chatgpt.parse,
     "grok": grok.parse,
     "gemini": gemini.parse,
+    "claude": claude.parse,
 }
 
 
