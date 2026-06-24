@@ -1,8 +1,11 @@
-"""Standalone sanity check for the Claude Code parser (repo has no pytest).
+"""Standalone regression check for the Claude Code parser (repo has no pytest).
 
 Builds a synthetic .jsonl in a temp dir, points CLAUDE_PROJECTS at it,
 and asserts the parser extracts prose-only messages, drops trivial
 sessions, and sets id/title/time correctly.
+
+Run from the repo root:
+    PYTHONPATH=. python scripts/verify_claude_parser.py
 """
 
 import json
