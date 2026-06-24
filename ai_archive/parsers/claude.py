@@ -67,9 +67,6 @@ def _parse_file(path: str) -> Conversation | None:
             role = "user" if rec.get("type") == "user" else "assistant"
             t = iso_to_epoch(rec.get("timestamp") or "")
             messages.append(Message(role=role, text=text, time=t))
-            sid = rec.get("sessionId")
-            if sid:
-                session_id = sid
 
     # drop trivial：沒有任何含文字的 user 訊息就丟棄
     user_msgs = [m for m in messages if m.role == "user" and m.text]
