@@ -40,8 +40,12 @@ web/                 Vite + React + TS 前端（dist 為 build 產物，不進 g
 deploy/              systemd 服務（port 2448）
 ```
 
-新增平台只需在 `ai_archive/parsers/` 加一個模組並在 `__init__.py` 註冊，其餘階段（store /
-index / rag / web）全部 data-driven、零改動。
+### 新增平台
+
+只在 `ai_archive/parsers/` 加一個模組並在 `__init__.py` 的 registry 註冊；後端其餘階段
+（store / index / rag / web）全部 data-driven、零改動。前端再補 `web/src/lib/api.ts` 的
+`Platform` 型別／`PLATFORMS`／`platformMeta`（含一個資料色）即可，各頁面迴圈 `PLATFORMS`
+自動跟上。核心原則：**下游一律 data-driven，勿在下游 hardcode 平台**。
 
 ## 資料流
 
