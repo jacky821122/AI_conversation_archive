@@ -1,6 +1,7 @@
 # 私人對話原始資料與衍生產物 —— 絕對不上 GitHub
 data/
 out/
+# （out/shots/ 開發截圖含真實對話，已被上面 out/ 涵蓋——絕不進 public repo）
 
 # 金鑰 —— 只追蹤 .env.example
 .env

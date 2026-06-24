@@ -1,0 +1,10 @@
+# 開發輔助依賴（非執行時必需；地基/web/rag 三層都不依賴這層）。
+# 用途：headless 瀏覽器截圖，讓開發時（含 AI 協作者）能「看見」web UI 的實際渲染、
+# RWD、sticky、互動結果。見 docs/dev-visual-testing.md 與 scripts/shoot.py。
+#
+# 安裝後另需下載瀏覽器： playwright install chromium
+# Linux 另需系統函式庫： playwright install-deps chromium  (需 sudo)
+#
+# 版本：第一次在乾淨機器裝成功後，請把實際可用版本 pin 在此（例 playwright==1.49.0），
+# 以確保跨機器一致。
+playwright
