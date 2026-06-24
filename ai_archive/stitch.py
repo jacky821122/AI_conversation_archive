@@ -26,8 +26,6 @@ import time as _time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-import numpy as np
-
 from .schema import Conversation, read_jsonl
 
 # ── 可調參數（靠 eval 調；CLI 可覆蓋部分）───────────────────────────────
@@ -105,6 +103,7 @@ def _pair_key(prev_id: str, cur_id: str) -> str:
 def _candidates(i: int, emb: np.ndarray, frags: list[Fragment],
                 window: int, s_semantic: int, top_k: int) -> list[tuple[int, float, float]]:
     """回傳 fragment i 的候選前驅 [(j, sim, combined_score)]，combined 由高到低。"""
+    import numpy as np
     if i == 0:
         return []
     sims = emb[:i] @ emb[i]  # cos（已 normalize）
@@ -281,6 +280,7 @@ def build(out_dir: str = "out", model: str | None = None,
 
 def _embed_fragments(frags: list[Fragment], out_dir: str, verbose: bool) -> np.ndarray:
     """向量化 fragment 代表文字；fragment id 列表不變就讀快取（out/thread_embeddings.npz）。"""
+    import numpy as np
     sig = hashlib.sha1("\n".join(f.id for f in frags).encode("utf-8")).hexdigest()
     cache_path = os.path.join(out_dir, "thread_embeddings.npz")
     if os.path.exists(cache_path):
