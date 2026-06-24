@@ -8,6 +8,11 @@ prose only：message.content 為字串直接取；為 block 陣列則只留 type
 的 block（丟掉 thinking / tool_use / tool_result）。一個 session = 一個
 Conversation；丟掉「沒有任何含文字 user 訊息」的 trivial session。
 
+另外把開頭為 "API Error:" 的 assistant 訊息當噪音濾掉（網路/設定壞掉時的回應）；
+濾掉後若整個 session 沒有任何 assistant 文字，視為「問了但沒得到有用回應」的
+廢 session 一併丟棄。用 startswith 精準命中真 error，不會誤殺內文討論 API error
+的真對話。
+
 來源 root 由 CLAUDE_PROJECTS 環境變數覆蓋，否則用 ~/.claude/projects。
 與其他 parser 不同，本 parser 不讀傳入的 data_dir。
 """
@@ -65,12 +70,18 @@ def _parse_file(path: str) -> Conversation | None:
             if not text:
                 continue
             role = "user" if rec.get("type") == "user" else "assistant"
+            # API Error 開頭的 assistant 回應＝噪音（網路/設定壞掉），丟掉
+            if role == "assistant" and text.startswith("API Error:"):
+                continue
             t = iso_to_epoch(rec.get("timestamp") or "")
             messages.append(Message(role=role, text=text, time=t))
 
     # drop trivial：沒有任何含文字的 user 訊息就丟棄
     user_msgs = [m for m in messages if m.role == "user" and m.text]
     if not user_msgs:
+        return None
+    # 濾掉 API Error 後若無任何 assistant 文字＝問了但沒得到有用回應，丟棄
+    if not any(m.role == "assistant" for m in messages):
         return None
 
     times = [m.time for m in messages if m.time]
