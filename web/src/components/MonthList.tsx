@@ -61,7 +61,7 @@ export default function MonthList({
             <button
               onClick={() => toggleYear(year)}
               aria-expanded={isOpen}
-              className="mb-1 flex w-full items-center gap-1.5 font-mono text-xs text-faint transition active:text-ink"
+              className="mb-3 flex w-full items-center gap-1.5 py-1 font-mono text-xs text-faint transition active:text-ink"
             >
               <ChevronDown
                 className={`h-3.5 w-3.5 transition-transform ${isOpen ? "" : "-rotate-90"}`}

@@ -60,7 +60,7 @@ export default function Dashboard() {
 
       {/* Signature：可點擊的思緒時間軸（桌面圖表 / 手機清單） */}
       <section>
-        <div className="sticky top-14 z-10 -mx-5 mb-2 flex items-center justify-between border-b border-line bg-paper/85 px-5 py-2 backdrop-blur">
+        <div className="sticky top-14 z-10 -mx-5 mb-2 flex items-center justify-between border-b border-line bg-paper/85 px-5 pb-2 pt-4 backdrop-blur">
           <h2 className="font-display text-lg font-semibold text-ink">思緒的時間軸</h2>
           <div className="flex items-center gap-3">
             <MetricToggle metric={metric} onChange={setMetric} />
