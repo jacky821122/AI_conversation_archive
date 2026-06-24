@@ -20,6 +20,28 @@ def main():
     assert estimate_tokens("") == 0, estimate_tokens("")
     # 空白等非 CJK 也計入非 CJK 桶："a b"（3 字元）→ ceil(3/4)=1
     assert estimate_tokens("a b") == 1, estimate_tokens("a b")
+
+    import tempfile, os
+    from ai_archive.schema import Conversation, Message
+    from ai_archive import store
+
+    with tempfile.TemporaryDirectory() as d:
+        db = os.path.join(d, "t.db")
+        convs = [Conversation(
+            id="claude:x", platform="claude", title="t",
+            create_time=1_700_000_000.0, update_time=1_700_000_000.0,
+            messages=[
+                Message(role="user", text="你好嗎", time=1_700_000_000.0),     # 3 tok
+                Message(role="assistant", text="abcd", time=1_700_000_000.0),  # 1 tok
+            ],
+        )]
+        store.build(convs, db)
+        dist = store.distribution(db)
+        assert len(dist) == 1, dist
+        row = dist[0]
+        assert row["platform"] == "claude", row
+        assert row["n"] == 1, row              # 1 段對話
+        assert row["tokens"] == 4, row         # 3 + 1
     print("OK: all assertions passed")
 
 

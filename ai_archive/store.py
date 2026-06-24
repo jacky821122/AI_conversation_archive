@@ -29,7 +29,8 @@ CREATE TABLE messages (
     idx      INTEGER NOT NULL,
     role     TEXT NOT NULL,
     text     TEXT NOT NULL,
-    time     REAL
+    time     REAL,
+    tokens   INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX idx_messages_conv ON messages(conv_id);
 CREATE VIRTUAL TABLE messages_fts USING fts5(
@@ -62,9 +63,9 @@ def build(convs: Iterable[Conversation], db_path: str) -> dict:
             )
             for i, m in enumerate(c.messages):
                 con.execute(
-                    "INSERT INTO messages(conv_id, idx, role, text, time) "
-                    "VALUES (?,?,?,?,?)",
-                    (c.id, i, m.role, m.text, m.time),
+                    "INSERT INTO messages(conv_id, idx, role, text, time, tokens) "
+                    "VALUES (?,?,?,?,?,?)",
+                    (c.id, i, m.role, m.text, m.time, estimate_tokens(m.text)),
                 )
                 n_msg += 1
             n_conv += 1
@@ -246,21 +247,27 @@ def count_conversations(db_path: str, platform: str | None = None,
 
 
 def distribution(db_path: str) -> list[dict]:
-    """各平台 × 各 YYYY-MM 的對話計數（給儀表板月份圖）。"""
+    """各平台 × 各 YYYY-MM 的對話計數與 token 估算量（給儀表板月份圖）。"""
     con = sqlite3.connect(db_path)
     try:
         rows = con.execute(
             """
-            SELECT platform,
-                   strftime('%Y-%m', create_time, 'unixepoch', 'localtime') AS month,
-                   count(*) AS n
-            FROM conversations
-            WHERE create_time IS NOT NULL
-            GROUP BY platform, month
+            SELECT c.platform,
+                   strftime('%Y-%m', c.create_time, 'unixepoch', 'localtime') AS month,
+                   count(*) AS n,
+                   COALESCE(SUM(mt.tokens), 0) AS tokens
+            FROM conversations c
+            LEFT JOIN (
+                SELECT conv_id, SUM(tokens) AS tokens
+                FROM messages GROUP BY conv_id
+            ) mt ON mt.conv_id = c.id
+            WHERE c.create_time IS NOT NULL
+            GROUP BY c.platform, month
             ORDER BY month
             """
         ).fetchall()
-        return [{"platform": p, "month": m, "n": n} for p, m, n in rows]
+        return [{"platform": p, "month": m, "n": n, "tokens": tok}
+                for p, m, n, tok in rows]
     finally:
         con.close()
 
