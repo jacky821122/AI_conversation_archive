@@ -86,7 +86,7 @@ import re
 _ASCII_RE = re.compile(r"[A-Za-z0-9]{2,}")
 _CJK_RE = re.compile(r"[一-鿿぀-ヿ]{3,}")
 
-# token 估算用 CJK 類（與檢索用 _CJK_RE 同範圍：中日韓常用區）。
+# token 估算用 CJK 類（與檢索用 _CJK_RE 同範圍：中日漢字＋假名）。
 _TOKEN_CJK_RE = re.compile(r"[一-鿿぀-ヿ]")
 
 
