@@ -33,6 +33,7 @@ export default function App() {
             <TopLink to="/" label="總覽" />
             <TopLink to="/browse" label="瀏覽" />
             <TopLink to="/ask" label="館長" />
+            <TopLink to="/plan" label="計畫" />
           </nav>
 
           <form onSubmit={onSubmit} className="relative ml-auto w-full max-w-sm">

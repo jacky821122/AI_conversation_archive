@@ -9,6 +9,7 @@ import SearchResults from "./pages/SearchResults";
 import Browse from "./pages/Browse";
 import ConversationView from "./pages/ConversationView";
 import Ask from "./pages/Ask";
+import Plan from "./pages/Plan";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 60_000, refetchOnWindowFocus: false } },
@@ -24,6 +25,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="search" element={<SearchResults />} />
             <Route path="browse" element={<Browse />} />
             <Route path="ask" element={<Ask />} />
+            <Route path="plan" element={<Plan />} />
             <Route path="c/:id" element={<ConversationView />} />
           </Route>
         </Routes>
