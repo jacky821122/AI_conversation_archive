@@ -61,7 +61,7 @@ export default function App() {
 
       <footer className="mx-auto max-w-5xl px-5 pb-10 pt-4">
         <p className="font-mono text-[0.65rem] text-faint">
-          你的 ChatGPT · Grok · Gemini 對話，存在本機。
+          你的 ChatGPT · Grok · Gemini · Claude 對話，存在本機。
         </p>
       </footer>
     </div>

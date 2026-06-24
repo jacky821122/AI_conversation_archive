@@ -1,6 +1,6 @@
 // 後端 API 的型別與封裝（對應 ai_archive/api.py）
 
-export type Platform = "chatgpt" | "grok" | "gemini";
+export type Platform = "chatgpt" | "grok" | "gemini" | "claude";
 
 export interface Stats {
   conversations: number;
@@ -140,13 +140,14 @@ export const api = {
 };
 
 // ---- 平台外觀（color 為資料色，承載「哪個 AI」語意）----
-export const PLATFORMS: Platform[] = ["chatgpt", "grok", "gemini"];
+export const PLATFORMS: Platform[] = ["chatgpt", "grok", "gemini", "claude"];
 
 // color 用 CSS 變數，深色模式會自動翻轉（見 index.css 的 .dark 覆寫）
 export const platformMeta: Record<Platform, { label: string; color: string }> = {
   chatgpt: { label: "ChatGPT", color: "var(--color-chatgpt)" },
   grok: { label: "Grok", color: "var(--color-grok)" },
   gemini: { label: "Gemini", color: "var(--color-gemini)" },
+  claude: { label: "Claude", color: "var(--color-claude)" },
 };
 
 export function fmtDate(t: number | null): string {
