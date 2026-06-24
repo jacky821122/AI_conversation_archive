@@ -33,6 +33,4 @@
 - **Gemini overlay 在消費端**：`normalized.jsonl` 永保 raw fragment（不改寫）；`ingest`/`index`
   消費時才套 `threads.json` overlay。不要把 overlay 寫回原始檔。
 - **冪等**：`ingest` / `index` / `stitch` 重跑須覆蓋輸出、結果一致。改這些指令時維持冪等。
-- **RAG 依賴在本機可能未裝**：缺 torch/sentence-transformers 是本機的刻意選擇，不是壞掉，別當
-  bug 處理或提醒重裝。
 - **這台機器**：用 `python3`（無 `python` alias）；有 NVIDIA GPU（WSL），bge-m3 走 cuda。
