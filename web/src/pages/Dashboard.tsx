@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, Link } from "react-router-dom";
 import { Library } from "lucide-react";
@@ -8,6 +9,7 @@ import ConvListItem from "../components/ConvListItem";
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [metric, setMetric] = useState<"count" | "tokens">("count");
   const stats = useQuery({ queryKey: ["stats"], queryFn: api.stats });
   const recent = useQuery({
     queryKey: ["recent"],
@@ -59,20 +61,42 @@ export default function Dashboard() {
       <section>
         <div className="mb-2 flex items-baseline justify-between">
           <h2 className="font-display text-lg font-semibold text-ink">思緒的時間軸</h2>
-          <span className="hidden font-mono text-[0.7rem] text-faint sm:inline">
-            點任一月份，回到那時候
-          </span>
+          <div className="flex items-center gap-3">
+            <div className="flex rounded-full border border-line p-0.5 font-mono text-[0.7rem]">
+              <button
+                onClick={() => setMetric("count")}
+                className={`rounded-full px-2.5 py-1 transition ${
+                  metric === "count" ? "bg-ink text-paper" : "text-muted hover:text-ink"
+                }`}
+              >
+                則數
+              </button>
+              <button
+                onClick={() => setMetric("tokens")}
+                className={`rounded-full px-2.5 py-1 transition ${
+                  metric === "tokens" ? "bg-ink text-paper" : "text-muted hover:text-ink"
+                }`}
+              >
+                token
+              </button>
+            </div>
+            <span className="hidden font-mono text-[0.7rem] text-faint sm:inline">
+              點任一月份，回到那時候
+            </span>
+          </div>
         </div>
         <div className="hidden sm:block">
           <MonthChart
             distribution={s.distribution}
             onSelectMonth={(m) => navigate(`/browse?month=${m}`)}
+            metric={metric}
           />
         </div>
         <div className="sm:hidden">
           <MonthList
             distribution={s.distribution}
             onSelectMonth={(m) => navigate(`/browse?month=${m}`)}
+            metric={metric}
           />
         </div>
       </section>
