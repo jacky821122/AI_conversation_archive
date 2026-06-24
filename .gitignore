@@ -8,6 +8,9 @@ out/
 # 私密計畫／進度檔（source of truth，含個人脈絡，不公開）
 PLAN.local.md
 
+# brainstorm/plan 設計文件（含工作脈絡，本機保存、不進 public repo）
+docs/superpowers/
+
 # Node / 前端 build 產物
 web/node_modules/
 web/dist/
