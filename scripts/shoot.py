@@ -81,11 +81,31 @@ def run(base_url: str, only: str | None) -> None:
             page.screenshot(path=_save_path("mobile-home-full"), full_page=True)
             saved.append("mobile-home-full")
 
-            # 捲動後截圖：驗證時間軸 sticky 標題凍結 + 底部列仍在
-            page.evaluate("window.scrollTo(0, 600)")
+            # 捲動後截圖：驗證時間軸 sticky 標題凍結 + 底部列仍在。
+            # 捲到「思緒的時間軸」標題貼齊頂部後再多捲一點，讓月份清單滑進它下方，
+            # 才看得出標題凍結（而非整段一起捲走）。
+            page.evaluate(
+                """() => {
+                    const h = [...document.querySelectorAll('h2')]
+                        .find(e => e.textContent.includes('思緒的時間軸'));
+                    if (h) {
+                        const top = h.getBoundingClientRect().top + window.scrollY;
+                        window.scrollTo(0, top + 30);
+                    }
+                }"""
+            )
             page.wait_for_timeout(300)
             page.screenshot(path=_save_path("mobile-scrolled"))
             saved.append("mobile-scrolled")
+
+            # 年份摺疊：點「2026」標題收合後截圖（驗證可收合；預設展開）。
+            page.evaluate("window.scrollTo(0, 0)")
+            year = page.get_by_role("button", name="2026")
+            if year.count():
+                year.first.click()
+                page.wait_for_timeout(300)
+                page.screenshot(path=_save_path("mobile-year-collapsed"))
+                saved.append("mobile-year-collapsed")
 
             # 計畫 tab（底部分頁列導覽）
             page.goto(base_url.rstrip("/") + "/plan", wait_until="networkidle")
