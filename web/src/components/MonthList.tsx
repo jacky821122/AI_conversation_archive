@@ -3,13 +3,17 @@ import { Stats, platformMeta, PLATFORMS } from "../lib/api";
 // 手機版時間軸：以年分組的可點月份清單（大點擊區、垂直捲動、好讀）。
 type MonthRow = { month: string; total: number; parts: Record<string, number> };
 
-function group(distribution: Stats["distribution"]) {
+function group(
+  distribution: Stats["distribution"],
+  metric: "count" | "tokens",
+) {
   const byMonth = new Map<string, MonthRow>();
   let max = 0;
   for (const d of distribution) {
     const row = byMonth.get(d.month) ?? { month: d.month, total: 0, parts: {} };
-    row.parts[d.platform] = d.n;
-    row.total += d.n;
+    const v = metric === "tokens" ? d.tokens : d.n;
+    row.parts[d.platform] = v;
+    row.total += v;
     byMonth.set(d.month, row);
     if (row.total > max) max = row.total;
   }
@@ -26,11 +30,13 @@ function group(distribution: Stats["distribution"]) {
 export default function MonthList({
   distribution,
   onSelectMonth,
+  metric,
 }: {
   distribution: Stats["distribution"];
   onSelectMonth: (month: string) => void;
+  metric: "count" | "tokens";
 }) {
-  const { byYear, max } = group(distribution);
+  const { byYear, max } = group(distribution, metric);
   const years = Array.from(byYear.keys());
 
   return (
@@ -62,8 +68,8 @@ export default function MonthList({
                     ) : null,
                   )}
                 </span>
-                <span className="w-8 shrink-0 text-right font-mono text-xs text-muted">
-                  {r.total}
+                <span className="w-14 shrink-0 text-right font-mono text-xs text-muted">
+                  {r.total.toLocaleString()}
                 </span>
               </button>
             ))}
