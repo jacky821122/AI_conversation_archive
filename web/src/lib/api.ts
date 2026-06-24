@@ -7,7 +7,12 @@ export interface Stats {
   messages: number;
   per_platform: Record<string, number>;
   roles: Record<string, number>;
-  distribution: { platform: string; month: string; n: number }[];
+  distribution: { platform: string; month: string; n: number; tokens: number }[];
+}
+
+export interface PlanResponse {
+  exists: boolean;
+  content: string;
 }
 
 export interface SearchHit {
@@ -98,6 +103,7 @@ async function post<T>(url: string, body?: unknown, token?: string): Promise<T> 
 
 export const api = {
   stats: () => get<Stats>("/api/stats"),
+  plan: () => get<PlanResponse>("/api/plan"),
 
   search: (q: string, platform?: string, limit = 30, offset = 0) => {
     const p = new URLSearchParams({ q, limit: String(limit), offset: String(offset) });
