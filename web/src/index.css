@@ -97,6 +97,9 @@ body {
   border-radius: 0.25rem;
   font-size: 0.85em;
   font-weight: 500;
+  /* 長的 inline code（路徑、URL）需可斷行，否則在手機上撐破版面 */
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .md :not(pre) > code::before,
 .md :not(pre) > code::after {
@@ -107,6 +110,8 @@ body {
   color: var(--color-code-ink);
   border: 1px solid var(--color-line);
   border-radius: 0.5rem;
+  /* 長程式碼行在區塊內橫向捲動，不撐破整頁版面 */
+  overflow-x: auto;
 }
 .md pre code {
   background: transparent;

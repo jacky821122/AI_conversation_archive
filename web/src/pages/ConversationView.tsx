@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, ReactNode } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
@@ -42,7 +42,7 @@ export default function ConversationView() {
       </button>
 
       <header className="border-b border-line pb-4">
-        <h1 className="font-display text-2xl font-semibold leading-snug text-ink">
+        <h1 className="font-display text-2xl font-semibold leading-snug text-ink break-words">
           {data.title || "未命名對話"}
         </h1>
         <div className="mt-2 flex items-center gap-3 font-mono text-xs text-faint">
@@ -81,10 +81,14 @@ export default function ConversationView() {
                 </div>
                 {isUser ? (
                   <div className="whitespace-prewrap text-sm leading-relaxed">
-                    {q ? <Highlight text={m.text} query={q} /> : m.text}
+                    <LongContent
+                      text={m.text}
+                      dark
+                      render={(t) => (q ? <Highlight text={t} query={q} /> : t)}
+                    />
                   </div>
                 ) : (
-                  <Markdown>{m.text}</Markdown>
+                  <LongContent text={m.text} render={(t) => <Markdown>{t}</Markdown>} />
                 )}
               </div>
             </div>
@@ -92,5 +96,44 @@ export default function ConversationView() {
         })}
       </div>
     </div>
+  );
+}
+
+// 單次渲染的字數上限。極長訊息（例如一次貼上整份文件/log，數十萬字）若全量
+// 渲染會讓頁面高達數十萬 px、手機首屏直接卡死，故先渲染前段、其餘分段展開。
+const CHUNK = 20000;
+
+function LongContent({
+  text,
+  render,
+  dark = false,
+}: {
+  text: string;
+  render: (slice: string) => ReactNode;
+  dark?: boolean;
+}) {
+  const [shown, setShown] = useState(() => Math.min(text.length, CHUNK));
+  const remaining = text.length - shown;
+  if (remaining <= 0) return <>{render(text)}</>;
+
+  // dark：在深色泡泡（user）內，按鈕需用淺色描邊才看得見。
+  const btn = dark
+    ? "rounded-full border border-paper/30 px-3 py-1 text-paper/80 transition hover:border-paper/60 hover:text-paper"
+    : "rounded-full border border-line-strong px-3 py-1 text-muted transition hover:border-accent hover:text-accent";
+  return (
+    <>
+      {render(text.slice(0, shown))}
+      <div className="mt-3 flex flex-wrap items-center gap-2 font-mono text-xs">
+        <button onClick={() => setShown((s) => Math.min(text.length, s + CHUNK))} className={btn}>
+          展開更多
+        </button>
+        <button onClick={() => setShown(text.length)} className={btn}>
+          全部展開
+        </button>
+        <span className={dark ? "text-paper/50" : "text-faint"}>
+          剩 {remaining.toLocaleString()} 字
+        </span>
+      </div>
+    </>
   );
 }
