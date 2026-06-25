@@ -44,3 +44,6 @@
 - **Gemini overlay 在消費端**：`normalized.jsonl` 永保 raw fragment（不改寫）；`ingest`/`index`
   消費時才套 `threads.json` overlay。不要把 overlay 寫回原始檔。
 - **冪等**：`ingest` / `index` / `stitch` 重跑須覆蓋輸出、結果一致。改這些指令時維持冪等。
+- **你要自助調閱語料時**：列表／取全文走 `ai_archive list` / `get`（加 `--json` 給自己解析），
+  關鍵字 `search`、語意 `search-dense`——以上全本地零外連；只有 `ask`（RAG）會把片段送生成端，
+  視為對外發送、跑前先確認。欄位／JSON 契約見 `ARCHITECTURE.md`「唯讀 read 契約」。

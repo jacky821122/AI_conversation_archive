@@ -1,6 +1,8 @@
 """ai_archive CLI — Phase A 地基指令。
 
   python -m ai_archive.cli ingest            # 解析三家 → normalized.jsonl + archive.db
+  python -m ai_archive.cli list              # 對話清單（可 --json）
+  python -m ai_archive.cli get "<conv_id>"   # 取單段對話全文（可 --json）
   python -m ai_archive.cli search "<關鍵字>"  # 純全文檢索（中文可用）
   python -m ai_archive.cli stats             # 顯示資料庫統計
 """
@@ -8,6 +10,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from datetime import datetime, timezone
 
@@ -68,6 +71,51 @@ def cmd_search(args) -> None:
         print(f"[{r['platform']:<7} {_fmt_time(r['time'])}] {r['title']}")
         print(f"    {r['role']}: {snippet}")
         print(f"    └ {r['conv_id']} #{r['idx']}")
+
+
+def cmd_list(args) -> None:
+    """對話清單：list / filter（platform、month）/ order，預設人讀，--json 給 agent。"""
+    db = os.path.join(args.out, "archive.db")
+    items = store.list_conversations(db, platform=args.platform, month=args.month,
+                                     order=args.order, limit=args.limit,
+                                     offset=args.offset)
+    total = store.count_conversations(db, platform=args.platform, month=args.month)
+    if args.json:
+        print(json.dumps(
+            {"platform": args.platform, "month": args.month, "order": args.order,
+             "limit": args.limit, "offset": args.offset,
+             "total": total, "count": len(items), "items": items},
+            ensure_ascii=False))
+        return
+    if not items:
+        print("（無對話）")
+        return
+    for c in items:
+        print(f"[{c['platform']:<7} {_fmt_time(c['create_time'])}] "
+              f"msgs={c['n_messages']:<4} {c['title'] or '（無標題）'}")
+        print(f"    └ {c['id']}")
+    shown = args.offset + len(items)
+    print(f"— 顯示 {args.offset + 1}–{shown} / 共 {total} 段 —")
+
+
+def cmd_get(args) -> None:
+    """取單段對話全文：meta + 全部訊息。預設人讀，--json 給 agent。"""
+    db = os.path.join(args.out, "archive.db")
+    conv = store.get_conversation(db, args.conv_id)
+    if conv is None:
+        raise SystemExit(f"查無對話 {args.conv_id}")
+    if args.json:
+        print(json.dumps(conv, ensure_ascii=False))
+        return
+    print(f"[{conv['platform']}] {conv['title'] or '（無標題）'}")
+    print(f"  建立 {_fmt_time(conv['create_time'])} / 更新 "
+          f"{_fmt_time(conv['update_time'])} / {conv['n_messages']} 則訊息")
+    print(f"  id: {conv['id']}")
+    print()
+    for m in conv["messages"]:
+        print(f"#{m['idx']} {m['role']} [{_fmt_time(m['time'])}]")
+        print(m["text"])
+        print()
 
 
 def cmd_stats(args) -> None:
@@ -211,6 +259,22 @@ def main(argv=None) -> None:
     ps.add_argument("query")
     ps.add_argument("--limit", type=int, default=10)
     ps.set_defaults(func=cmd_search)
+
+    pl = sub.add_parser("list", help="對話清單 (list/filter/order，唯讀，可 --json)")
+    pl.add_argument("--platform", choices=list(REGISTRY),
+                    help="只列指定平台 (預設全部)")
+    pl.add_argument("--month", help="只列某月 YYYY-MM (依 create_time，本地時區)")
+    pl.add_argument("--order", choices=["recent", "oldest"], default="recent",
+                    help="排序 (預設 recent)")
+    pl.add_argument("--limit", type=int, default=30)
+    pl.add_argument("--offset", type=int, default=0, help="分頁起點")
+    pl.add_argument("--json", action="store_true", help="輸出 JSON (給 agent 解析)")
+    pl.set_defaults(func=cmd_list)
+
+    pg = sub.add_parser("get", help="取單段對話全文 (唯讀，可 --json)")
+    pg.add_argument("conv_id", help="對話 id (list/search 結果的 └ 那一行)")
+    pg.add_argument("--json", action="store_true", help="輸出 JSON (給 agent 解析)")
+    pg.set_defaults(func=cmd_get)
 
     pt = sub.add_parser("stats", help="資料庫統計")
     pt.set_defaults(func=cmd_stats)

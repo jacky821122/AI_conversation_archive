@@ -35,7 +35,7 @@ ai_archive/
   rag.py             混合檢索（dense+FTS, RRF）→ 生成端作答附出處
   stitch.py          Gemini session 還原（時間 gap 切 session）
   api.py             FastAPI：/api/* 端點 + serve 前端 dist
-  cli.py             ingest / search / stats / index / search-dense / ask / stitch / web
+  cli.py             ingest / list / get / search / stats / index / search-dense / ask / stitch / web
 web/                 Vite + React + TS 前端（dist 為 build 產物，不進 git）
 deploy/              systemd 服務（port 2448）
 ```
@@ -79,6 +79,20 @@ out/threads.json       Gemini session 還原 overlay
   ]
 }
 ```
+
+## 唯讀 read 契約（給 agent / 程式取用）
+
+`list` / `get` 是 `store.list_conversations` / `get_conversation` 的 CLI 薄殼（與
+`/api/conversations*` 同源），純 stdlib、零外連、不載模型。`--json` 給程式解析，欄位同
+`conversations` 表：`id`／`platform`／`title`／`create_time`／`update_time`／`n_messages`。
+
+```
+list --json  → {platform, month, order, limit, offset, total, count, items:[<上述欄位>]}
+get  --json  → {<上述欄位>, messages:[{idx, role, text, time}]}   // 依 idx 排序
+```
+
+`list` filter：`--platform`／`--month`(YYYY-MM)／`--order`(recent|oldest)／`--limit`／`--offset`。
+`id` 即 `<platform>:<原生 id>`，是跨指令的穩定 handle（`list`/`search` 結果 → 餵 `get`）。
 
 ## 平台
 
