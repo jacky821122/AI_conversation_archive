@@ -17,7 +17,7 @@ export default function Highlight({ text, query }: { text: string; query: string
     }
     if (hit > i) out.push(text.slice(i, hit));
     out.push(
-      <mark key={key++} className="rounded bg-amber-200 px-0.5 text-slate-900">
+      <mark key={key++} className="kw">
         {text.slice(hit, hit + needle.length)}
       </mark>,
     );

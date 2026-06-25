@@ -1,15 +1,19 @@
-import { useEffect, useRef, useState, ReactNode } from "react";
+import { useRef, useState, ReactNode } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import { api, platformMeta, fmtDate } from "../lib/api";
 import Highlight from "../components/Highlight";
 import Markdown from "../components/Markdown";
+import { useFind, FindBar } from "../components/FindBar";
 import { Loading, ErrorBox } from "./Dashboard";
+
+// 命中訊息可自動整則展開的字數上限：超過則維持分段（避免重現超大訊息卡死）。
+const SAFE_FULL = 120000;
 
 export default function ConversationView() {
   const { id } = useParams();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const matchIdx = params.get("m") ? Number(params.get("m")) : null;
   const q = params.get("q") ?? "";
@@ -20,12 +24,15 @@ export default function ConversationView() {
     enabled: !!id,
   });
 
-  const markRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (data && markRef.current) {
-      markRef.current.scrollIntoView({ block: "center" });
-    }
-  }, [data]);
+  const listRef = useRef<HTMLDivElement>(null);
+  const find = useFind(listRef, q, matchIdx, data?.messages.length ?? 0);
+
+  function closeFind() {
+    const next = new URLSearchParams(params);
+    next.delete("q");
+    next.delete("m");
+    setParams(next, { replace: true });
+  }
 
   if (isLoading) return <Loading />;
   if (error) return <ErrorBox msg={String(error)} />;
@@ -55,14 +62,16 @@ export default function ConversationView() {
         </div>
       </header>
 
-      <div className="space-y-5">
+      <div ref={listRef} className="space-y-5">
         {data.messages.map((m) => {
           const isUser = m.role === "user";
           const isMatch = m.idx === matchIdx;
+          // 命中訊息預設整則展開，讓 occurrence 一定在 DOM 裡可被 find 抓到、可捲到。
+          const expanded = isMatch && m.text.length <= SAFE_FULL;
           return (
             <div
               key={m.idx}
-              ref={isMatch ? markRef : undefined}
+              data-idx={m.idx}
               className={`flex ${isUser ? "justify-end" : "justify-start"}`}
             >
               <div
@@ -70,7 +79,7 @@ export default function ConversationView() {
                   isUser
                     ? "rounded-br-sm bg-ink text-paper"
                     : "rounded-bl-sm border border-line bg-surface text-ink"
-                } ${isMatch ? "ring-2 ring-accent ring-offset-2 ring-offset-paper" : ""}`}
+                }`}
               >
                 <div
                   className={`mb-1 font-mono text-[0.6rem] uppercase tracking-widest ${
@@ -84,17 +93,30 @@ export default function ConversationView() {
                     <LongContent
                       text={m.text}
                       dark
+                      expanded={expanded}
                       render={(t) => (q ? <Highlight text={t} query={q} /> : t)}
                     />
                   </div>
                 ) : (
-                  <LongContent text={m.text} render={(t) => <Markdown>{t}</Markdown>} />
+                  <LongContent
+                    text={m.text}
+                    expanded={expanded}
+                    render={(t) => <Markdown highlight={q}>{t}</Markdown>}
+                  />
                 )}
               </div>
             </div>
           );
         })}
       </div>
+
+      <FindBar
+        total={find.total}
+        current={find.current}
+        onPrev={find.prev}
+        onNext={find.next}
+        onClose={closeFind}
+      />
     </div>
   );
 }
@@ -107,12 +129,16 @@ function LongContent({
   text,
   render,
   dark = false,
+  expanded = false,
 }: {
   text: string;
   render: (slice: string) => ReactNode;
   dark?: boolean;
+  expanded?: boolean;
 }) {
-  const [shown, setShown] = useState(() => Math.min(text.length, CHUNK));
+  const [shown, setShown] = useState(() =>
+    expanded ? text.length : Math.min(text.length, CHUNK),
+  );
   const remaining = text.length - shown;
   if (remaining <= 0) return <>{render(text)}</>;
 

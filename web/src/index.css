@@ -89,6 +89,27 @@ body {
   color: var(--color-faint);
 }
 
+/* ── 關鍵字高亮（搜尋結果片段、對話頁跨內容；含頁內 find 導覽）──
+   .kw 為一般命中、.kw-current 為 find 當前命中。scroll-margin-top 讓
+   scrollIntoView 不被 sticky header 蓋住。 */
+.kw {
+  background: #fde68a;
+  color: #1c1917;
+  border-radius: 0.2rem;
+  padding: 0 0.1em;
+  scroll-margin-top: 5rem;
+  scroll-margin-bottom: 6rem;
+}
+.dark .kw {
+  background: #b48a2e;
+  color: #faf8f4;
+}
+.kw.kw-current {
+  background: var(--color-accent);
+  color: var(--color-paper);
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+
 /* ── Markdown 程式碼樣式（直接控制，避開 prose 的主題翻轉）── */
 .md :not(pre) > code {
   background: var(--color-code-bg);

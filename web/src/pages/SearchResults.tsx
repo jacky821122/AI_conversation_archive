@@ -35,7 +35,7 @@ export default function SearchResults() {
         <p className="eyebrow">搜尋</p>
         <span className="font-display text-2xl text-ink">「{q}」</span>
         {data && <span className="font-mono text-sm text-muted">{data.count} 則命中</span>}
-        <div className="ml-auto flex gap-1.5">
+        <div className="no-scrollbar ml-auto flex max-w-full gap-1.5 overflow-x-auto">
           <Chip label="全部" active={!platform} onClick={() => setPlatform("")} />
           {PLATFORMS.map((p) => (
             <Chip
@@ -74,11 +74,11 @@ export default function SearchResults() {
                   <span className="truncate text-muted">{r.title || "未命名對話"}</span>
                   <span className="ml-auto shrink-0">{fmtDate(r.time)}</span>
                 </div>
-                <p className="whitespace-prewrap line-clamp-3 text-sm leading-relaxed text-ink/80">
+                <p className="line-clamp-3 text-sm leading-relaxed text-ink/80">
                   <span className="mr-1.5 font-mono text-[0.7rem] text-faint">
                     {r.role === "user" ? "我" : "AI"}
                   </span>
-                  <Highlight text={r.text} query={q} />
+                  <Highlight text={snippet(r.text, q)} query={q} />
                 </p>
               </div>
             </Link>
@@ -87,6 +87,23 @@ export default function SearchResults() {
       </div>
     </div>
   );
+}
+
+// 以第一個命中為中心切出片段，確保高亮的關鍵字一定落在 line-clamp 可見範圍內。
+// 換行壓成單空白以利在 3 行內閱讀；截斷處補省略號。找不到命中則退回原文開頭。
+// 前綴刻意短：中文每行才 ~18 字，前綴太長會把關鍵字擠出 3 行裁切範圍而看不到高亮。
+const BEFORE = 24;
+const AFTER = 180;
+function snippet(text: string, query: string): string {
+  const q = query.trim();
+  const hit = q ? text.toLowerCase().indexOf(q.toLowerCase()) : -1;
+  if (hit === -1) return text.slice(0, BEFORE + AFTER).replace(/\s+/g, " ").trim();
+  const start = Math.max(0, hit - BEFORE);
+  const end = Math.min(text.length, hit + q.length + AFTER);
+  let s = text.slice(start, end).replace(/\s+/g, " ").trim();
+  if (start > 0) s = "… " + s;
+  if (end < text.length) s = s + " …";
+  return s;
 }
 
 function Chip({
@@ -103,7 +120,7 @@ function Chip({
   return (
     <button
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-xs transition ${
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-xs transition ${
         active
           ? "border-ink bg-ink text-paper"
           : "border-line-strong text-muted hover:border-ink hover:text-ink"
