@@ -61,7 +61,7 @@ export default function Browse() {
         </h1>
       </header>
 
-      <div className="flex gap-1.5">
+      <div className="no-scrollbar -mx-5 flex gap-1.5 overflow-x-auto px-5">
         <Chip label="全部" active={!platform} onClick={() => patch("platform", "")} />
         {PLATFORMS.map((p) => (
           <Chip
@@ -113,7 +113,7 @@ function Chip({
   return (
     <button
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-xs transition ${
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-xs transition ${
         active
           ? "border-ink bg-ink text-paper"
           : "border-line-strong text-muted hover:border-ink hover:text-ink"

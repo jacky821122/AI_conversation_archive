@@ -72,6 +72,15 @@ body {
   word-break: break-word;
 }
 
+/* 水平捲動容器隱藏捲軸（手機 chips 列用）：不影響可捲動性 */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 .eyebrow {
   font-family: var(--font-mono);
   font-size: 0.7rem;
