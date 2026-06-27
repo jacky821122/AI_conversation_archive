@@ -24,7 +24,7 @@ ai_archive/
   schema.py          統一 Conversation / Message dataclass + JSONL 讀寫
   parsers/
     __init__.py      registry: platform -> parse_fn（新增平台只動這）
-    _util.py         時間解析、citation 清理、HTML 去標籤
+    _util.py         時間解析、內嵌標註清理/解包、HTML 去標籤
     chatgpt.py       mapping 樹線性化
     grok.py          responses → 正規化
     gemini.py        My Activity JSON → 迷你兩則對話 fragment
@@ -102,6 +102,12 @@ get  --json  → {<上述欄位>, messages:[{idx, role, text, time}]}   // 依 i
 | `grok` | `data/**/prod-grok-backend.json` | responses → 正規化 |
 | `gemini` | `data/**/Gemini Apps_JSON/*.json` | My Activity，1問1答 fragment（見 Gemini session 還原） |
 | `claude` | `~/.claude/projects/<cwd>/<sessionId>.jsonl` | 本機 Claude Code session，一檔一對話，prose only |
+
+> **內嵌標註清理（`_util.clean_text`，ChatGPT/Grok 共用）**：ChatGPT 把連結/entity/product 等
+> 以私有區 unicode（U+E200..E201 包夾、U+E202 分段）內嵌進文字流，Grok 用 `<grok:render>` 標籤。
+> 純導覽/metadata（`cite`、`image_group`、`entity_metadata`…）整段移除；**帶可讀顯示文字者
+> （`url`→markdown 連結、`entity` 家族→陣列 `[1]` 顯示名、`video`/`navlist`→標題）解包還原其顯示
+> 文字而非整段刪除**——否則會把該顯示的字一起刪掉造成「缺字」。未知型別/解析失敗一律退回刪除。
 
 ### Claude Code 紀錄（第四平台）
 
