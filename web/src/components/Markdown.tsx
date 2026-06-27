@@ -112,6 +112,10 @@ export default function Markdown({
               <table {...props} />
             </div>
           ),
+          // 連結預設開新分頁，避免點對話內連結時離開語料庫頁面。
+          a: ({ node, ...props }) => (
+            <a {...props} target="_blank" rel="noopener noreferrer" />
+          ),
         }}
       >
         {normalizeMath(children)}
