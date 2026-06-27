@@ -39,6 +39,7 @@ export interface Message {
   role: "user" | "assistant";
   text: string;
   time: number | null;
+  attachments?: string[];
 }
 
 export interface Conversation extends ConvSummary {

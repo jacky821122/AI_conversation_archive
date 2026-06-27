@@ -82,11 +82,20 @@ export default function ConversationView() {
                 }`}
               >
                 <div
-                  className={`mb-1 font-mono text-[0.6rem] uppercase tracking-widest ${
+                  className={`mb-1 flex items-center gap-2 font-mono text-[0.6rem] uppercase tracking-widest ${
                     isUser ? "text-paper/50" : "text-faint"
                   }`}
                 >
-                  {isUser ? "我" : meta?.label ?? "AI"}
+                  <span>{isUser ? "我" : meta?.label ?? "AI"}</span>
+                  {m.attachments && m.attachments.length > 0 && (
+                    <span
+                      className={`rounded-full px-1.5 normal-case ${
+                        isUser ? "bg-paper/15 text-paper/80" : "bg-line text-muted"
+                      }`}
+                    >
+                      📎 {m.attachments.length}
+                    </span>
+                  )}
                 </div>
                 {isUser ? (
                   <div className="whitespace-prewrap text-sm leading-relaxed">

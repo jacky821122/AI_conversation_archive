@@ -115,6 +115,9 @@ def cmd_get(args) -> None:
     for m in conv["messages"]:
         print(f"#{m['idx']} {m['role']} [{_fmt_time(m['time'])}]")
         print(m["text"])
+        atts = m.get("attachments") or []
+        if atts:
+            print(f"📎 {len(atts)} 個附件: {', '.join(atts)}")
         print()
 
 

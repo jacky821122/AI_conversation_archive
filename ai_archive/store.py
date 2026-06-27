@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 import sqlite3
 from typing import Iterable
@@ -30,7 +31,8 @@ CREATE TABLE messages (
     role     TEXT NOT NULL,
     text     TEXT NOT NULL,
     time     REAL,
-    tokens   INTEGER NOT NULL DEFAULT 0
+    tokens   INTEGER NOT NULL DEFAULT 0,
+    attachments TEXT NOT NULL DEFAULT '[]'  -- JSON list[str]：附件指標（asset_pointer），Tier 0 只留線索不解析本體
 );
 CREATE INDEX idx_messages_conv ON messages(conv_id);
 CREATE VIRTUAL TABLE messages_fts USING fts5(
@@ -63,9 +65,10 @@ def build(convs: Iterable[Conversation], db_path: str) -> dict:
             )
             for i, m in enumerate(c.messages):
                 con.execute(
-                    "INSERT INTO messages(conv_id, idx, role, text, time, tokens) "
-                    "VALUES (?,?,?,?,?,?)",
-                    (c.id, i, m.role, m.text, m.time, estimate_tokens(m.text)),
+                    "INSERT INTO messages(conv_id, idx, role, text, time, tokens, "
+                    "attachments) VALUES (?,?,?,?,?,?,?)",
+                    (c.id, i, m.role, m.text, m.time, estimate_tokens(m.text),
+                     json.dumps(m.attachments, ensure_ascii=False)),
                 )
                 n_msg += 1
             n_conv += 1
@@ -185,11 +188,19 @@ def get_conversation(db_path: str, conv_id: str) -> dict | None:
         if c is None:
             return None
         msgs = con.execute(
-            "SELECT idx, role, text, time FROM messages "
+            "SELECT idx, role, text, time, attachments FROM messages "
             "WHERE conv_id = ? ORDER BY idx", (conv_id,)
         ).fetchall()
         out = dict(c)
-        out["messages"] = [dict(m) for m in msgs]
+        messages = []
+        for m in msgs:
+            d = dict(m)
+            try:
+                d["attachments"] = json.loads(d.get("attachments") or "[]")
+            except (TypeError, ValueError):
+                d["attachments"] = []
+            messages.append(d)
+        out["messages"] = messages
         return out
     finally:
         con.close()
