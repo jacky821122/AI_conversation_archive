@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ai_archive 資料分層</title>
+<style>
+  :root{
+    --bg:#0e1014; --panel:#161922; --panel2:#1d212c; --border:#2a2f3a;
+    --text:#e8eaef; --muted:#9aa3b0;
+    --raw:#8b95a7; --parser:#6ea8fe; --jsonl:#7ee787; --db:#bd8bff; --web:#3fd0c9;
+    --drop:#ff6b81; --keep:#7ee787; --warn:#ffb454;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(900px 500px at 85% -8%,#1a2030 0%,var(--bg) 55%);
+    color:var(--text);font-family:var(--sans);line-height:1.65;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto;padding:44px 20px 90px}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--parser);margin:0 0 10px}
+  h1{font-size:27px;margin:0 0 12px;line-height:1.25}
+  .lede{color:var(--muted);font-size:15.5px;margin:0}
+  .lede b{color:var(--text)}
+
+  /* platform legend */
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin:22px 0 8px;font-size:13px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .dot{width:10px;height:10px;border-radius:50%}
+
+  h2{font-size:19px;margin:46px 0 14px;padding-bottom:9px;border-bottom:1px solid var(--border)}
+
+  /* the diagram */
+  .stage{display:flex;justify-content:center;margin:8px 0 26px}
+  svg{width:100%;height:auto;max-width:430px}
+
+  .chiprow{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 4px}
+  .chip{font-size:13px;padding:5px 11px;border-radius:999px;border:1px solid;display:inline-flex;align-items:center;gap:6px;font-family:var(--mono)}
+  .chip.keep{color:var(--keep);border-color:#2f5e3a;background:#13201a}
+  .chip.drop{color:var(--drop);border-color:#5e2f38;background:#201316}
+  .chip .ic{font-weight:700}
+  .sub{color:var(--muted);font-size:13px;margin:4px 0 0}
+
+  /* per-item cut breakdown: logic + example */
+  .cut-list{display:grid;grid-template-columns:1fr;gap:12px;margin:16px 0 4px}
+  .cut{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--drop);border-radius:11px;padding:13px 15px}
+  .cut-h{font-size:14.5px;font-weight:700;display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:5px}
+  .plat{font-family:var(--mono);font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:6px;color:#0e1014;letter-spacing:.02em}
+  .plat.chatgpt{background:#19c37d}.plat.grok{background:#e8e8e8}.plat.gemini{background:#4285f4;color:#fff}
+  .plat.claude{background:#d97757}.plat.all{background:#9aa3b0}
+  .logic{font-size:13px;color:#cdd2db;margin:2px 0 9px}
+  .logic b{color:#fff} .logic code{font-size:12px}
+  .ex{font-family:var(--mono);font-size:12px;background:#0e1014;border:1px solid var(--border);border-radius:8px;padding:9px 11px;line-height:1.75;overflow-x:auto}
+  .ex .b{color:#ff8ea0;display:block} .ex .b s{text-decoration-color:#ff6b81;opacity:.92}
+  .ex .a{color:#7ee787;display:block} .ex .mut{color:#6b7280}
+  .ex .lbl{color:#6b7280;font-size:10.5px;letter-spacing:.05em}
+
+  .grid2{display:grid;grid-template-columns:1fr;gap:14px;margin:14px 0}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px 18px}
+  .card h3{margin:0 0 6px;font-size:15px;display:flex;align-items:center;gap:8px}
+  .num{font-family:var(--mono);font-size:12px;color:var(--bg);background:var(--parser);border-radius:6px;padding:1px 7px}
+  .card p{margin:6px 0 0;font-size:14px;color:#cdd2db}
+  code{font-family:var(--mono);font-size:12.5px;background:var(--panel2);border:1px solid var(--border);border-radius:5px;padding:1px 6px;color:#d8e0ff;word-break:break-word}
+
+  /* badges for jsonl->db */
+  .badges{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 2px}
+  .badge{flex:1 1 150px;min-width:140px;border:1px solid var(--border);border-radius:12px;padding:12px 14px;background:var(--panel)}
+  .badge .op{font-family:var(--mono);font-size:20px;font-weight:700;line-height:1}
+  .badge .lbl{font-size:13.5px;margin-top:6px;color:#cdd2db}
+  .op.minus{color:var(--drop)} .op.plus{color:var(--keep)} .op.merge{color:var(--db)}
+
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px;background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+  th{background:var(--panel2);font-size:12px;letter-spacing:.04em;color:var(--muted);text-transform:uppercase}
+  tbody tr:last-child td{border-bottom:none}
+  td code{white-space:nowrap}
+
+  .callout{margin-top:34px;background:linear-gradient(180deg,#1c1713,#18130e);border:1px solid #6b4d20;border-radius:14px;padding:18px 20px}
+  .callout h3{color:var(--warn);margin:4px 0 6px;font-size:15px}
+  .callout p{color:#f0e2cf;margin:0;font-size:14px}
+
+  footer{margin-top:50px;padding-top:16px;border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;font-family:var(--mono)}
+
+  @media(max-width:600px){
+    .wrap{padding:30px 15px 64px}
+    h1{font-size:23px} h2{font-size:18px;margin:36px 0 12px}
+    table,thead,tbody,th,td,tr{display:block}
+    thead{position:absolute;left:-9999px}
+    table{border:none;background:transparent}
+    tbody tr{background:var(--panel);border:1px solid var(--border);border-radius:12px;margin:11px 0;padding:5px 2px}
+    td{border-bottom:none;padding:6px 14px}
+    td:first-child code{font-size:13px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">ai_archive · data pipeline</p>
+  <h1>資料怎麼分層？哪層篩掉了什麼</h1>
+  <p class="lede">五層轉換裡，<b>真正大量去雜訊的只有 parser 那一層</b>；jsonl→db 之間還悄悄少一個欄位、多兩個東西、改一次結構。下面的管線會<b>收窄</b>就是在表達這件事。</p>
+
+  <div class="legend">
+    <span><i class="dot" style="background:#19c37d"></i>ChatGPT</span>
+    <span><i class="dot" style="background:#e8e8e8"></i>Grok</span>
+    <span><i class="dot" style="background:#4285f4"></i>Gemini</span>
+    <span><i class="dot" style="background:#d97757"></i>Claude</span>
+  </div>
+
+  <div class="stage">
+  <svg viewBox="0 0 400 830" role="img" aria-label="資料分層管線圖">
+    <defs>
+      <linearGradient id="gFunnel" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#6ea8fe" stop-opacity=".55"/>
+        <stop offset="1" stop-color="#6ea8fe" stop-opacity=".14"/>
+      </linearGradient>
+      <linearGradient id="gPipe" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#3a4150" stop-opacity=".5"/>
+        <stop offset="1" stop-color="#3a4150" stop-opacity=".22"/>
+      </linearGradient>
+      <filter id="sh" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000" flood-opacity="0.35"/>
+      </filter>
+    </defs>
+
+    <!-- ===== pipes (drawn first, behind cards) ===== -->
+    <!-- funnel: raw -> parser (big taper) -->
+    <polygon points="85,79 315,79 230,221 170,221" fill="url(#gFunnel)" stroke="#6ea8fe" stroke-opacity=".5"/>
+    <!-- noise particles spraying off -->
+    <g fill="none" stroke="#ff6b81" stroke-width="2" stroke-linecap="round" opacity=".9">
+      <path d="M150,120 l-26,-10"/><path d="M138,150 l-30,-4"/><path d="M132,182 l-28,6"/>
+      <path d="M250,120 l26,-10"/><path d="M262,150 l30,-4"/><path d="M268,182 l28,6"/>
+    </g>
+    <g fill="#ff6b81" opacity=".95">
+      <circle cx="120" cy="110" r="3"/><circle cx="104" cy="146" r="3"/><circle cx="100" cy="190" r="3"/>
+      <circle cx="280" cy="110" r="3"/><circle cx="296" cy="146" r="3"/><circle cx="300" cy="190" r="3"/>
+    </g>
+    <text x="200" y="150" text-anchor="middle" font-family="var(--mono)" font-size="11" fill="#ff8ea0" font-weight="700">⟂ 去雜訊</text>
+    <text x="200" y="167" text-anchor="middle" font-size="8.5" fill="#9aa3b0">thinking · tool_use · citation</text>
+    <text x="200" y="180" text-anchor="middle" font-size="8.5" fill="#9aa3b0">HTML 標籤 · API&nbsp;Error · 廢/headless</text>
+
+    <!-- parser -> jsonl (straight) -->
+    <rect x="170" y="279" width="60" height="102" fill="url(#gPipe)" stroke="#7ee787" stroke-opacity=".4"/>
+    <text x="245" y="335" font-size="9.5" fill="#7ee787">② 原樣寫出</text>
+
+    <!-- jsonl -> db (slight taper + badges) -->
+    <polygon points="170,439 230,439 224,561 176,561" fill="url(#gPipe)" stroke="#bd8bff" stroke-opacity=".45"/>
+    <g font-family="var(--mono)" font-size="11" font-weight="700">
+      <text x="246" y="478" fill="#ff6b81">− attachments</text>
+      <text x="246" y="498" fill="#7ee787">+ tokens</text>
+      <text x="246" y="518" fill="#7ee787">+ FTS index</text>
+      <text x="246" y="538" fill="#bd8bff">⤙ Gemini 縫合</text>
+    </g>
+
+    <!-- db -> web (straight) -->
+    <rect x="176" y="619" width="48" height="112" fill="url(#gPipe)" stroke="#3fd0c9" stroke-opacity=".4"/>
+    <text x="240" y="678" font-size="9.5" fill="#3fd0c9">④ 內容一致</text>
+
+    <!-- ===== layer cards ===== -->
+    <!-- L1 raw -->
+    <g filter="url(#sh)">
+      <rect x="70" y="21" width="260" height="58" rx="13" fill="#161922" stroke="#8b95a7"/>
+    </g>
+    <text x="92" y="46" font-size="20">💾</text>
+    <text x="122" y="46" font-size="15" font-weight="700" fill="#e8eaef">硬碟 raw</text>
+    <text x="122" y="64" font-size="11.5" fill="#9aa3b0">各家原生格式（mapping樹 / HTML / jsonl）</text>
+
+    <!-- L2 parser -->
+    <g filter="url(#sh)">
+      <rect x="70" y="221" width="260" height="58" rx="13" fill="#161922" stroke="#6ea8fe" stroke-width="1.6"/>
+    </g>
+    <text x="92" y="246" font-size="20">🧹</text>
+    <text x="122" y="246" font-size="15" font-weight="700" fill="#e8eaef">parser</text>
+    <text x="122" y="264" font-size="11.5" fill="#9aa3b0">統一 schema · 去雜訊主戰場</text>
+
+    <!-- L3 jsonl -->
+    <g filter="url(#sh)">
+      <rect x="70" y="381" width="260" height="58" rx="13" fill="#161922" stroke="#7ee787"/>
+    </g>
+    <text x="92" y="406" font-size="19">📄</text>
+    <text x="122" y="406" font-size="14.5" font-weight="700" fill="#e8eaef">normalized.jsonl</text>
+    <text x="122" y="424" font-size="11.5" fill="#9aa3b0">最完整真相 · 永不被 overlay 改寫</text>
+
+    <!-- L4 db -->
+    <g filter="url(#sh)">
+      <rect x="70" y="561" width="260" height="58" rx="13" fill="#161922" stroke="#bd8bff"/>
+    </g>
+    <text x="92" y="586" font-size="19">🗄️</text>
+    <text x="122" y="586" font-size="14.5" font-weight="700" fill="#e8eaef">archive.db</text>
+    <text x="122" y="604" font-size="11.5" fill="#9aa3b0">改結構 · 加索引 · 丟附件</text>
+
+    <!-- L5 web -->
+    <g filter="url(#sh)">
+      <rect x="70" y="731" width="260" height="58" rx="13" fill="#161922" stroke="#3fd0c9"/>
+    </g>
+    <text x="92" y="756" font-size="19">🖥️</text>
+    <text x="122" y="756" font-size="14.5" font-weight="700" fill="#e8eaef">cli / web</text>
+    <text x="122" y="774" font-size="11.5" fill="#9aa3b0">讀同一個 db · 只差顯示截斷</text>
+
+    <!-- boundary ① pill on funnel -->
+    <g transform="translate(200,100)">
+      <rect x="-26" y="-13" width="52" height="22" rx="11" fill="#0e1014" stroke="#6ea8fe"/>
+      <text x="0" y="2" text-anchor="middle" font-size="12" font-weight="700" fill="#6ea8fe">①</text>
+    </g>
+  </svg>
+  </div>
+
+  <h2>① raw → parser　<span style="font-size:14px;color:var(--muted);font-weight:400">砍最兇</span></h2>
+  <p class="sub">這層決定「哪些算語料」。下面綠色＝留下，紅色＝丟掉：</p>
+  <div class="chiprow">
+    <span class="chip keep"><i class="ic">✓</i>user / assistant 純文字</span>
+    <span class="chip keep"><i class="ic">✓</i>role · time · title</span>
+    <span class="chip keep"><i class="ic">✓</i>附件指標字串</span>
+  </div>
+  <p class="sub" style="margin-top:14px">而被丟掉的，逐項對照 code 邏輯＋例子：</p>
+  <div class="cut-list">
+
+    <div class="cut">
+      <div class="cut-h"><span class="plat claude">Claude</span>只留 text block</div>
+      <div class="logic"><code>message.content</code> 是 block 陣列時，<b>只保留 <code>type=="text"</code> 的 block</b>，其餘整塊丟。</div>
+      <div class="ex">
+        <span class="lbl">BEFORE</span>
+        <span class="b"><s>[thinking]推理過程… · [text]"好，我幫你改" · [tool_use]Edit(file…)</s></span>
+        <span class="lbl">AFTER</span>
+        <span class="a">"好，我幫你改"　<span class="mut">← thinking / tool_use / tool_result 全消失</span></span>
+      </div>
+    </div>
+
+    <div class="cut">
+      <div class="cut-h"><span class="plat chatgpt">ChatGPT</span>只收 text / multimodal_text</div>
+      <div class="logic">訊息的 <code>content_type</code> 不在 <b>{text, multimodal_text}</b> 就整則跳過——模型的 CoT（<code>thoughts</code> / <code>reasoning_recap</code>）即在此被濾掉。</div>
+      <div class="ex">
+        <span class="lbl">BEFORE</span>
+        <span class="b"><s>{ content_type:"thoughts", text:"先分析使用者意圖…" }</s></span>
+        <span class="lbl">AFTER</span>
+        <span class="a">整則消失，只留 content_type:"text" 的最終答案</span>
+      </div>
+    </div>
+
+    <div class="cut" style="border-left-color:var(--accent)">
+      <div class="cut-h"><span class="plat chatgpt">ChatGPT</span><span class="plat grok">Grok</span>內嵌標註：解包還原 or 移除</div>
+      <div class="logic"><code>clean_text()</code> 處理內嵌標註（ChatGPT 私有區 <code>U+E200…E201</code> 包夾、<code>U+E202</code> 分段的 token；Grok <code>&lt;grok:render&gt;</code> 標籤）。<b>純導覽/metadata</b>（cite、image_group、entity_metadata…）整段移除；<b>帶可讀顯示文字者</b>（<code>url</code>→markdown 連結、<code>entity</code> 家族→顯示名、video/navlist→標題）<b>解包還原</b>而非整段刪——否則會把該顯示的字一起刪掉造成「缺字」。</div>
+      <div class="ex">
+        <span class="lbl">解包還原（url，先前會缺字）</span>
+        <span class="b"><s>⟪E200⟫url⟪E202⟫Flashpoint Archive⟪E202⟫https://…⟪E201⟫</s></span>
+        <span class="a">[Flashpoint Archive](https://…)　<span class="mut">← 顯示文字保留、web 上成可點連結</span></span>
+        <span class="lbl">移除（純 metadata）</span>
+        <span class="b">答案<s>⟪E200⟫cite⟪E202⟫turn0search1⟪E201⟫</s>很明確 ／ <s>&lt;grok:render&gt;[1]&lt;/grok:render&gt;</s></span>
+        <span class="a">答案很明確</span>
+      </div>
+    </div>
+
+    <div class="cut">
+      <div class="cut-h"><span class="plat gemini">Gemini</span>HTML → 純文字</div>
+      <div class="logic">Takeout 匯出是 HTML；<code>html_to_text()</code> 去掉所有標籤，區塊級標籤（<code>p/li/div…</code>）換成換行。</div>
+      <div class="ex">
+        <span class="lbl">BEFORE</span>
+        <span class="b"><s>&lt;p&gt;第一段&lt;/p&gt;&lt;ul&gt;&lt;li&gt;重點&lt;/li&gt;&lt;/ul&gt;</s></span>
+        <span class="lbl">AFTER</span>
+        <span class="a">第一段 ⏎ 重點</span>
+      </div>
+    </div>
+
+    <div class="cut">
+      <div class="cut-h"><span class="plat claude">Claude</span><code style="font-size:12px">API Error:</code> 訊息</div>
+      <div class="logic">assistant 文字 <b>startswith(<code>"API Error:"</code>)</b> 的訊息丟掉（網路/設定壞掉的回應）。用 startswith 精準命中，<b>不誤殺</b>內文在討論 API error 的真對話。</div>
+      <div class="ex">
+        <span class="lbl">BEFORE</span>
+        <span class="b">assistant: <s>API Error: Connection error.</s></span>
+        <span class="lbl">AFTER</span>
+        <span class="a">該則移除</span>
+      </div>
+    </div>
+
+    <div class="cut">
+      <div class="cut-h"><span class="plat claude">Claude</span>整段 session 丟棄（3 條任一命中）</div>
+      <div class="logic">
+        ① 沒有任何含文字的 user 訊息（純指令/空白）　·
+        ② 濾掉 API Error 後沒有任何 assistant 文字（問了沒得到回應）　·
+        ③ 首則 user 訊息命中 <code>CLAUDE_EXCLUDE_PROMPTS</code> 前綴（cron / ping 等 headless 噪音）
+      </div>
+      <div class="ex">
+        <span class="lbl">BEFORE</span>
+        <span class="b">session 首則 user = <s>"&lt;You are a scheduling agent…&gt;"</s>（命中排除前綴）</span>
+        <span class="lbl">AFTER</span>
+        <span class="a">整個 session 不進庫</span>
+      </div>
+    </div>
+
+    <div class="cut">
+      <div class="cut-h"><span class="plat gemini">Gemini</span>非 <code style="font-size:12px">"Prompted "</code> 活動</div>
+      <div class="logic">title 必須以 <code>"Prompted "</code> 開頭才當一次問答；其餘活動整筆跳過。</div>
+      <div class="ex">
+        <span class="lbl">BEFORE</span>
+        <span class="b"><s>title: "Used Gemini Apps"</s>　<span class="mut">（非 prompt 活動）</span></span>
+        <span class="lbl">AFTER（保留的長這樣）</span>
+        <span class="a">title: "Prompted 幫我寫…" → user_text = "幫我寫…"</span>
+      </div>
+    </div>
+
+    <div class="cut">
+      <div class="cut-h"><span class="plat chatgpt">ChatGPT</span>附件只留指標，metadata 與本體都不留</div>
+      <div class="logic">image part 取 <code>asset_pointer</code> 指標字串記為 attachment，其餘 metadata（<code>content_type / width / height / size_bytes / metadata{}</code>）丟掉。<b>圖檔本體（<code>file-XXXX.dat</code>）從頭到尾沒被讀</b>——匯出夾用 <code>conversation_asset_file_names.json</code> 對照得回去，但 parser 沒接這條線。</div>
+      <div class="ex">
+        <span class="lbl">BEFORE — JSON part（注意：裡面沒有位元組）</span>
+        <span class="b">{ asset_pointer:"sediment://file_0000…", <s>content_type, width, height, size_bytes, metadata{…}</s> }</span>
+        <span class="lbl">＋ 圖檔本體在匯出夾另存</span>
+        <span class="a" style="color:#9aa3b0">file-XXXX.dat（此 export 共約 83MB）　← parser 從不讀取</span>
+        <span class="lbl">AFTER</span>
+        <span class="a">attachments: ["sediment://file_0000…"]　<span class="mut">← 只剩指標；到 db 層連這個也被丟</span></span>
+      </div>
+    </div>
+
+  </div>
+
+  <h2>② parser → jsonl　<span style="font-size:14px;color:var(--muted);font-weight:400">不篩</span></h2>
+  <div class="card">
+    <p><code>write_jsonl</code> 純序列化——記憶體有什麼就寫什麼，<b style="color:var(--jsonl)">Gemini 在這裡仍是未縫合的 raw fragment</b>。jsonl 是整條管線「資訊最完整」的一層。</p>
+  </div>
+
+  <h2>③ jsonl → db　<span style="font-size:14px;color:var(--muted);font-weight:400">改結構（常被忽略）</span></h2>
+  <div class="badges">
+    <div class="badge"><div class="op minus">−</div><div class="lbl"><b>attachments 欄位被丟掉</b><br>db schema 根本沒這欄</div></div>
+    <div class="badge"><div class="op plus">+</div><div class="lbl"><b>tokens</b><br>估算後寫入，供時間軸</div></div>
+    <div class="badge"><div class="op plus">+</div><div class="lbl"><b>FTS5 trigram</b><br>建全文檢索索引</div></div>
+    <div class="badge"><div class="op merge">⤙</div><div class="lbl"><b>Gemini 縫合</b><br>fragment 併成 session，對話變少</div></div>
+  </div>
+
+  <h2>④ db → cli / web　<span style="font-size:14px;color:var(--muted);font-weight:400">內容一致</span></h2>
+  <div class="card">
+    <p>web 與 cli <b>共用 <code>store.py</code> 同一組函式</b>，資料完全一樣。差別只在呈現層：<code>search</code> snippet 截斷（120/140 字）是<b>顯示截斷</b>，底層 text 仍是全的。</p>
+  </div>
+
+  <h2>一句話總結</h2>
+  <table>
+    <thead><tr><th>交界</th><th>內容變化</th></tr></thead>
+    <tbody>
+      <tr><td><code>raw → parser</code></td><td><b>絕大多數過濾</b>：非 prose、citation、廢 session、附件本體</td></tr>
+      <tr><td><code>parser → jsonl</code></td><td>無（原樣落地，Gemini 仍是 raw fragment）</td></tr>
+      <tr><td><code>jsonl → db</code></td><td>Gemini 縫合 · <span style="color:var(--warn)">attachments 丟失</span> · +tokens · +FTS</td></tr>
+      <tr><td><code>db → cli/web</code></td><td>內容一致，只有顯示截斷</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <h3>⚠️ 唯一的「資訊靜默流失」</h3>
+    <p><b>attachments 在進 db 時被丟掉</b>——jsonl 還看得到附件指標，但你透過 cli/web 查不到。日後若想做「找出有附圖的對話」，得回頭把這欄帶進 db schema。</p>
+  </div>
+
+  <footer>ai_archive · 暫時檔案 · 本機語料分析整理，零外連</footer>
+
+</div>
+</body>
+</html>

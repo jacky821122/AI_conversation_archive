@@ -1,15 +1,16 @@
 # 私人對話原始資料與衍生產物 —— 絕對不上 GitHub
 data/
 out/
-# （out/shots/ 開發截圖含真實對話，已被上面 out/ 涵蓋——絕不進 public repo）
 
 # 金鑰 —— 只追蹤 .env.example
 .env
 
-# 私密計畫／進度檔（source of truth，含個人脈絡，不公開）
 PLAN.local.md
 
-# brainstorm/plan 設計文件（含工作脈絡，本機保存、不進 public repo）
+CLAUDE.local.md
+
+*.backup.md
+
 docs/superpowers/
 
 # Node / 前端 build 產物

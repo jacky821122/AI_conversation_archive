@@ -1,49 +1,51 @@
-# AI Conversation Archive — AI 協作準則
+# AI Conversation Archive — AI Collaboration Guidelines
 
-把個人的 ChatGPT / Grok / Gemini / Claude Code 對話匯出，做成可搜尋、可問答的語料庫與第二大腦。
+Export your personal ChatGPT / Grok / Gemini / Claude Code conversations and turn them into a searchable, queryable corpus and second brain.
 
-## 脈絡檔的定位與權威順序
+## Role and authority order of the context files
 
-**權威順序（高 → 低）**：當下對話的明示決策　>　`CLAUDE.md`（硬規範）　>
-`PLAN.local.md` / `ARCHITECTURE.md`（歷史百科）。
+**Authority order (high -> low)**: explicit decisions in the current conversation　>　`CLAUDE.md` / `CLAUDE.local.md` (hard rules)　>
+`PLAN.local.md` / `ARCHITECTURE.md` (historical encyclopedia).
 
-- **唯一的硬規範是本檔（CLAUDE.md）**：要當準則遵守的只有這裡。
-- **`PLAN.local.md` / `ARCHITECTURE.md` 是歷史百科，不是聖經**：它們記的是「上次寫下時的真相」。
-  使用者常是 implement 一串後才回頭更新文檔，故這兩份**可能落後於 code 與當下對話**。把它們當
-  參考、可質疑；與 code 或當下對話衝突時，**以現況為準，並提醒使用者該文檔可能過時**。不要因為
-  「文檔沒寫」就斷定某事不存在，也不要拿其中的舊決策推翻對話中剛確立的新決策。
-- **按需讀，不是每次硬讀**（PLAN 會越來越肥，瑣碎任務硬讀只是塞雜訊、燒 token）：
-  - 需要專案脈絡／決策史（討論方向、設計、實作非瑣碎功能） → 查 `PLAN.local.md`。
-  - 需要架構原理（動到資料流、schema、跨模組設計） → 查 `ARCHITECTURE.md`。
-  - 瑣碎／局部任務（改變數名、修錯字、單檔小編輯、純問答） → 兩份都不必讀。
-  - 要更新某份檔 → 當然先讀那份。
-- `PLAN.local.md` 不存在時（別台 clone）→ 以 git log + `ARCHITECTURE.md` 接續，並提醒使用者。
+- **The hard rules are this file (CLAUDE.md), plus the peer-level `CLAUDE.local.md` (if present)**: at the start of every task, check
+  whether the project root has a `CLAUDE.local.md`; if so, **its authority equals this file's — follow it as a rule too**.
+- **`PLAN.local.md` / `ARCHITECTURE.md` are a historical encyclopedia, not scripture**: they record "the truth as of when they were last written".
+  The user often implements a series of changes and only updates the docs afterward, so these two **may lag behind the code and the current conversation**. Treat them as
+  reference, open to question; when they conflict with the code or the current conversation, **defer to the present state, and remind the user the doc may be stale**. Do not
+  conclude something doesn't exist just because "the doc doesn't mention it", and do not use an old decision in them to overturn a new decision just established in the conversation.
+- **Read on demand, not by force every time** (PLAN keeps growing fatter; force-reading it for trivial tasks just injects noise and burns tokens):
+  - Need project context / decision history (discussing direction, design, implementing non-trivial features) -> consult `PLAN.local.md`.
+  - Need architectural rationale (touching data flow, schema, cross-module design) -> consult `ARCHITECTURE.md`.
+  - Trivial / local tasks (renaming variables, fixing typos, small single-file edits, pure Q&A) -> neither is needed.
+  - Updating one of these files -> read that file first, of course.
+- When `PLAN.local.md` is absent (a clone on another machine) -> carry on from git log + `ARCHITECTURE.md`, and remind the user.
 
-## 文件分工（改文件時對號入座）
+## Division of labor across documents (match the right file when editing docs)
 
-- **`README.md`** — 純使用手冊（環境建置、指令、跑法）。手冊資訊置頂、一眼可見；不放設計原理。
-- **`ARCHITECTURE.md`** — 不敏感的架構與設計原理（程式結構、資料流、schema、各設計「為什麼」）。進 git。
-- **`PLAN.local.md`** — 本機開發計畫，含個人記憶／可能敏感內容、預計開發、決策歷史。**不進 git**。
-- **`CLAUDE.md`**（本檔）— 協作準則與不易從 code 看出的慣例摘要。
+- **`README.md`** — purely a user manual (environment setup, commands, how to run). Manual info goes up top, visible at a glance; no design rationale.
+- **`ARCHITECTURE.md`** — non-sensitive architecture and design rationale (program structure, data flow, schema, the "why" of each design). Goes into git.
+- **`PLAN.local.md`** — local development plan, containing personal notes / possibly sensitive content, planned work, decision history. **Not in git**.
+- **`CLAUDE.md`** (this file) — collaboration guidelines and a summary of conventions not obvious from the code. Goes into git (public).
+- **`CLAUDE.local.md`** — machine-specific collaboration guidelines. When present, its authority equals `CLAUDE.md`'s. **Not in git**.
 
-> 架構樹、資料流、各平台與設計原理的細節都在 `ARCHITECTURE.md`；指令與建置在 `README.md`。
-> 本檔只留「協作時要記得的準則」，不重複那些內容。
+> The architecture tree, data flow, and the details of each platform and design rationale are all in `ARCHITECTURE.md`; commands and setup are in `README.md`.
+> This file keeps only "guidelines to remember while collaborating" and does not duplicate that content.
 
-## 慣例與邊界（不易從 code 直接看出的）
+## Conventions and boundaries (not directly obvious from the code)
 
-- **隱私邊界（最高原則）**：索引／向量化／檢索全在本地、零外連；只有 RAG 最終「檢索到的片段」
-  會送生成端。`data/`、`out/`、`.env`、`PLAN.local.md` 皆 gitignored。GitHub repo 為
-  **public，只推程式碼**。改任何東西前先確認不會把私人資料或敏感脈絡推上 public repo。
-- **依賴分層**：地基純 stdlib（ingest/search/stats，零安裝）；web 用 `requirements-web.txt`；
-  RAG 用 `requirements-rag.txt`。動地基層時基本上不要引入第三方依賴，真的需要就詢問使用者。
-- **生成端可換**：RAG 走 OpenAI 相容介面，設定全在 `.env`。換模型／供應商＝改 `.env`，不動程式。
-- **新增平台＝下游 data-driven**：勿在下游（store/index/rag/web）hardcode 平台。實際步驟見
-  `ARCHITECTURE.md`「新增平台」。
-- **Web UI 響應式（RWD）**：任何 Web UI 改動都要同時考慮手機版（以 iOS 為主）與桌面版的呈現與
-  操作體驗，兩者皆需驗證，勿只顧其中一種版型。
-- **Gemini overlay 在消費端**：`normalized.jsonl` 永保 raw fragment（不改寫）；`ingest`/`index`
-  消費時才套 `threads.json` overlay。不要把 overlay 寫回原始檔。
-- **冪等**：`ingest` / `index` / `stitch` 重跑須覆蓋輸出、結果一致。改這些指令時維持冪等。
-- **你要自助調閱語料時**：列表／取全文走 `ai_archive list` / `get`（加 `--json` 給自己解析），
-  關鍵字 `search`、語意 `search-dense`——以上全本地零外連；只有 `ask`（RAG）會把片段送生成端，
-  視為對外發送、跑前先確認。欄位／JSON 契約見 `ARCHITECTURE.md`「唯讀 read 契約」。
+- **Privacy boundary (top principle)**: indexing / vectorization / retrieval all happen locally, with zero external calls; only the final "retrieved fragments" of RAG
+  are sent to the generation endpoint. `data/`, `out/`, `.env`, `PLAN.local.md` are all gitignored. The GitHub repo is
+  **public, code only**. Before changing anything, confirm it won't push private data or sensitive context to the public repo.
+- **Dependency layering**: the foundation is pure stdlib (ingest/search/stats, zero install); web uses `requirements-web.txt`;
+  RAG uses `requirements-rag.txt`. When touching the foundation layer, basically do not introduce third-party dependencies; if truly needed, ask the user.
+- **Swappable generation endpoint**: RAG goes through an OpenAI-compatible interface, all configured in `.env`. Switching model / provider = edit `.env`, no code change.
+- **Adding a platform = data-driven downstream**: do not hardcode platforms downstream (store/index/rag/web). For the actual steps see
+  the "Adding a platform" section in `ARCHITECTURE.md`.
+- **Responsive Web UI (RWD)**: any Web UI change must consider both the mobile (iOS-first) and desktop layouts' presentation and
+  interaction, and both must be verified — don't attend to only one form factor.
+- **Gemini overlay is on the consumer side**: `normalized.jsonl` always preserves the raw fragment (never rewritten); `ingest`/`index`
+  apply the `threads.json` overlay only at consumption time. Do not write the overlay back into the source file.
+- **Idempotency**: rerunning `ingest` / `index` / `stitch` must overwrite the output and produce identical results. Keep these commands idempotent when changing them.
+- **When you need to consult the corpus yourself**: list / fetch full text via `ai_archive list` / `get` (add `--json` for you to parse),
+  keyword via `search`, semantic via `search-dense` — all of the above are local with zero external calls; only `ask` (RAG) sends fragments to the generation endpoint,
+  treat it as an outbound transmission and confirm before running. For field / JSON contracts see the "read-only read contract" section in `ARCHITECTURE.md`.

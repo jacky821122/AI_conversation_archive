@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ai_archive · 設計文件</title>
+<style>
+  :root{
+    --bg:#0e1014; --panel:#161922; --panel2:#1d212c; --border:#2a2f3a;
+    --text:#e8eaef; --muted:#9aa3b0;
+    --raw:#8b95a7; --parser:#6ea8fe; --jsonl:#7ee787; --db:#bd8bff; --web:#3fd0c9;
+    --drop:#ff6b81; --keep:#7ee787; --warn:#ffb454;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(900px 500px at 85% -8%,#1a2030 0%,var(--bg) 55%);
+    color:var(--text);font-family:var(--sans);line-height:1.65;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto;padding:44px 20px 90px}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--parser);margin:0 0 10px}
+  h1{font-size:27px;margin:0 0 12px;line-height:1.25}
+  .lede{color:var(--muted);font-size:15.5px;margin:0}
+  .lede b{color:var(--text)}
+
+  h2{font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);
+    margin:46px 0 16px;padding-bottom:9px;border-bottom:1px solid var(--border)}
+
+  /* doc list */
+  .docs{display:grid;grid-template-columns:1fr;gap:14px}
+  a.doc{display:block;text-decoration:none;color:inherit;background:var(--panel);
+    border:1px solid var(--border);border-left:3px solid var(--accent,var(--parser));
+    border-radius:14px;padding:16px 18px;transition:border-color .15s,transform .15s,background .15s}
+  a.doc:hover{background:var(--panel2);transform:translateY(-2px);border-color:var(--accent,var(--parser))}
+  .doc .top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .doc .ic{font-size:20px;line-height:1}
+  .doc .title{font-size:16px;font-weight:700}
+  .doc .tag{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.03em;
+    padding:2px 8px;border-radius:6px;color:#0e1014;background:var(--accent,var(--parser))}
+  .doc .desc{margin:8px 0 0;font-size:13.5px;color:#cdd2db}
+  .doc .arrow{margin-left:auto;color:var(--muted);font-family:var(--mono);font-size:18px;line-height:1}
+
+  .empty{color:var(--muted);font-size:13.5px;font-family:var(--mono);
+    border:1px dashed var(--border);border-radius:12px;padding:16px 18px;text-align:center}
+
+  footer{margin-top:50px;padding-top:16px;border-top:1px solid var(--border);
+    color:var(--muted);font-size:12.5px;font-family:var(--mono)}
+
+  @media(max-width:600px){
+    .wrap{padding:30px 15px 64px}
+    h1{font-size:23px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">ai_archive · docs</p>
+  <h1>設計文件</h1>
+  <p class="lede">把專案裡<b>不易從 code 一眼看懂的設計</b>畫成圖、講清楚。給自己跨裝置隨時翻閱用。</p>
+
+  <h2>資料管線 · Pipeline</h2>
+  <div class="docs">
+    <a class="doc" href="data_layers_explained.html" style="--accent:var(--parser)">
+      <div class="top">
+        <span class="ic">🧹</span>
+        <span class="title">資料怎麼分層？哪層篩掉了什麼</span>
+        <span class="tag">PIPELINE</span>
+        <span class="arrow">→</span>
+      </div>
+      <p class="desc">raw → parser → jsonl → db → web 五層轉換；哪一層去雜訊、哪一層偷偷改了 schema。</p>
+    </a>
+  </div>
+
+  <footer>ai_archive · 設計文件索引　·　新增頁面時在此補一張卡片</footer>
+
+</div>
+</body>
+</html>
