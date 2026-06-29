@@ -17,16 +17,29 @@ from ..schema import Conversation, Message
 from ._util import mongo_or_epoch, clean_text
 
 
+_SENDER_ROLES = {
+    "human": "user",
+    "ASSISTANT": "assistant",
+    "assistant": "assistant",
+}
+
+
+def _role_for_sender(sender: object) -> str | None:
+    return _SENDER_ROLES.get(sender) if isinstance(sender, str) else None
+
+
 def _convert(item: dict) -> Conversation | None:
     conv = item.get("conversation") or {}
     responses = item.get("responses") or []
     rows: list[tuple[float | None, Message]] = []
     for r in responses:
         rr = r.get("response") or {}
+        role = _role_for_sender(rr.get("sender"))
+        if role is None:
+            continue
         text = clean_text(rr.get("message") or "").strip()
         if not text:
             continue
-        role = "user" if rr.get("sender") == "human" else "assistant"
         t = mongo_or_epoch(rr.get("create_time"))
         rows.append((t, Message(role=role, text=text, time=t)))
     if not rows:
