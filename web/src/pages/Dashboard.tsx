@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, Link } from "react-router-dom";
 import { Library } from "lucide-react";
 import { api, platformMeta, PLATFORMS, fmtMonth } from "../lib/api";
-import MonthChart from "../components/MonthChart";
 import MonthList from "../components/MonthList";
 import MetricToggle, { Metric } from "../components/MetricToggle";
 import ConvListItem from "../components/ConvListItem";
+
+const MonthChart = lazy(() => import("../components/MonthChart"));
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -70,11 +71,13 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="hidden sm:block">
-          <MonthChart
-            distribution={s.distribution}
-            onSelectMonth={(m) => navigate(`/browse?month=${m}`)}
-            metric={metric}
-          />
+          <Suspense fallback={<div className="h-[260px]" />}>
+            <MonthChart
+              distribution={s.distribution}
+              onSelectMonth={(m) => navigate(`/browse?month=${m}`)}
+              metric={metric}
+            />
+          </Suspense>
         </div>
         <div className="sm:hidden">
           <MonthList

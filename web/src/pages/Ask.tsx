@@ -1,9 +1,10 @@
-import { useState, FormEvent } from "react";
+import { Suspense, lazy, useState, FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Sparkles, Power, Loader2, KeyRound, CircleDot } from "lucide-react";
 import { api, ApiError, platformMeta, fmtDate, AskResponse } from "../lib/api";
-import Markdown from "../components/Markdown";
+
+const Markdown = lazy(() => import("../components/Markdown"));
 
 // 模型生命週期由使用者手動掌控：載入才碰 GPU、問完可釋放 VRAM
 // （閒置 15 分 server 也會自動釋放）。token 存 localStorage，load/ask/release 共用。
@@ -201,7 +202,9 @@ export default function Ask() {
 function Answer({ data }: { data: AskResponse }) {
   return (
     <section className="space-y-6 border-t border-line pt-8">
-      <Markdown>{data.answer}</Markdown>
+      <Suspense fallback={<div className="py-6 font-mono text-sm text-faint">載入中…</div>}>
+        <Markdown>{data.answer}</Markdown>
+      </Suspense>
 
       {data.sources.length > 0 && (
         <div className="space-y-2">
