@@ -178,17 +178,18 @@ def build_context(chunks: list[dict]) -> str:
     return "\n\n---\n\n".join(parts)
 
 
-def ask(question: str, out_dir: str = "out", model: str | None = None,
-        top_k: int = 8, max_tokens: int = 4096,
-        embedder: Embedder | None = None) -> dict:
-    """檢索 → 餵生成端（OpenAI 相容）作答。回傳 {answer, sources, model}。
+def answer_from_chunks(question: str, chunks: list[dict],
+                       model: str | None = None,
+                       max_tokens: int = 4096) -> dict:
+    """Generate an answer from already-retrieved chunks.
 
-    embedder：傳入則沿用（server 持有的常駐模型）；不傳則 retrieve 自建。
+    Long-running callers can retrieve under their own local-model lock, release
+    that lock, then call this helper for the outbound generation step.
     """
     resolved_model = model if model is not None else resolve_default_model()
-    chunks = retrieve(question, out_dir=out_dir, top_k=top_k, embedder=embedder)
     if not chunks:
-        return {"answer": "依現有紀錄找不到相關內容。", "sources": [], "model": resolved_model}
+        return {"answer": "依現有紀錄找不到相關內容。", "sources": [],
+                "model": resolved_model}
 
     context = build_context(chunks)
     user_msg = f"資料片段：\n\n{context}\n\n---\n\n問題：{question}"
@@ -208,3 +209,14 @@ def ask(question: str, out_dir: str = "out", model: str | None = None,
         for i, c in enumerate(chunks, 1)
     ]
     return {"answer": answer, "sources": sources, "model": resolved_model}
+
+
+def ask(question: str, out_dir: str = "out", model: str | None = None,
+        top_k: int = 8, max_tokens: int = 4096,
+        embedder: Embedder | None = None) -> dict:
+    """檢索 → 餵生成端（OpenAI 相容）作答。回傳 {answer, sources, model}。
+
+    embedder：傳入則沿用（server 持有的常駐模型）；不傳則 retrieve 自建。
+    """
+    chunks = retrieve(question, out_dir=out_dir, top_k=top_k, embedder=embedder)
+    return answer_from_chunks(question, chunks, model=model, max_tokens=max_tokens)

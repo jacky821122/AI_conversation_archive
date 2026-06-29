@@ -201,13 +201,16 @@ def api_ask(body: AskBody, x_ask_token: str | None = Header(None)) -> dict:
     global _last_used
     _check_token(x_ask_token)
     _require_db()
-    if _embedder is None:
-        raise HTTPException(status_code=409, detail="模型未載入，請先開啟（POST /api/model/load）")
     from . import rag  # lazy：模組 import 本身輕（不拉 torch）
 
     out_dir = os.path.dirname(DB_PATH)  # = .../out，rag 需 vectors.db + archive.db 同目錄
-    res = rag.ask(body.question, out_dir=out_dir, top_k=body.top_k,
-                  embedder=_embedder)
+    with _model_lock:
+        if _embedder is None:
+            raise HTTPException(status_code=409, detail="模型未載入，請先開啟（POST /api/model/load）")
+        chunks = rag.retrieve(body.question, out_dir=out_dir, top_k=body.top_k,
+                              embedder=_embedder)
+
+    res = rag.answer_from_chunks(body.question, chunks)
     _last_used = time.time()
     return res
 
