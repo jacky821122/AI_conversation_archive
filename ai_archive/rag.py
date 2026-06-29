@@ -24,7 +24,7 @@ DEFAULT_BASE_URL = os.environ.get("AGNES_BASE_URL", "https://apihub.agnes-ai.com
 RRF_K = 60  # RRF 常數，弱化排名靠後者的影響
 
 _SYSTEM = """你是使用者的資料整理助手。下面提供的「資料片段」全部出自\
-使用者本人過去與各家 AI（ChatGPT／Grok／Gemini）的對話紀錄，是他的想法、語氣與\
+使用者本人過去與各家 AI（ChatGPT／Grok／Gemini／Claude Code）的對話紀錄，是他的想法、語氣與\
 知識的存底。
 
 規則：
