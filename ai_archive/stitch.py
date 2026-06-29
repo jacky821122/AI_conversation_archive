@@ -209,8 +209,8 @@ def build(out_dir: str = "out", model: str | None = None,
           sim_hi: float = SIM_HI, sim_med: float = SIM_MED, sim_lo: float = SIM_LO,
           verbose: bool = True) -> dict:
     """(重)建 Gemini 對話串 → out/threads.json（+ 更新 thread_decisions.json）。"""
-    from .rag import DEFAULT_MODEL
-    model = model or DEFAULT_MODEL
+    from .rag import resolve_default_model
+    model = model if model is not None else resolve_default_model()
     jsonl = os.path.join(out_dir, "normalized.jsonl")
     if not os.path.exists(jsonl):
         raise SystemExit(f"找不到 {jsonl}；請先執行 ingest")

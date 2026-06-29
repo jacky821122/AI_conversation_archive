@@ -174,7 +174,7 @@ def cmd_ask(args) -> None:
     """混合檢索 → Claude 作答附出處（會送檢索片段到 API）。"""
     from . import rag
     res = rag.ask(args.question, out_dir=args.out,
-                  model=args.model or rag.DEFAULT_MODEL, top_k=args.top_k)
+                  model=args.model, top_k=args.top_k)
     print(res["answer"])
     print()
     print(f"— 出處（{res['model']}）—")
