@@ -135,8 +135,9 @@ def search(db_path: str, query: str, platform: str | None = None,
     """回傳命中訊息（含所屬對話脈絡）。
 
     mode="phrase"（預設，給 web/CLI search）：整句當片語，≥3 字走 FTS5
-    trigram（依 bm25 相關度排序）、<3 字退回 LIKE（無相關度可算，改依
-    time 降冪＝最新命中優先）。mode="or"（給 RAG）：抽關鍵詞做 OR 檢索。
+    trigram（依 bm25 相關度升冪排序，讓前端能以「首次出現＝該對話最相關命中」
+    取代表）、<3 字退回 LIKE（無相關度可算，改依 time 降冪＝最新命中優先）。
+    mode="or"（給 RAG）：抽關鍵詞做 OR 檢索。
     platform 可選做平台篩選。
     """
     query = query.strip()

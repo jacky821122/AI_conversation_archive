@@ -43,9 +43,16 @@ export default function SearchResults() {
       }
       out[gi].hits.push(r);
     }
-    // results 已按 bm25 排序 → 各 thread 首次出現即其最佳命中，thread 間順序沿用；
-    // thread 內改依 idx（對話時間序）排列。best 保留為最相關那則，收合時顯示它。
-    for (const g of out) g.hits.sort((a, b) => a.idx - b.idx);
+    // results 已按 bm25 升冪排序 → 各 thread 首次出現即其最佳命中，best 即代表命中（收合顯示）。
+    // thread 內：best（最相關）永遠釘在第一則不動，其餘命中依時間降冪（最新在上）。
+    for (const g of out)
+      g.hits.sort((a, b) =>
+        a === g.best ? -1 : b === g.best ? 1 : (b.time ?? 0) - (a.time ?? 0) || b.idx - a.idx,
+      );
+    // thread 間：純依代表命中時間降冪（最新在上）。不依相關性分桶——因 FTS 用 trigram
+    // tokenizer 無「詞」概念，bm25 無法區分 whole-word 與子字串（如查 bmc 時 BMC 與 openbmc
+    // 同分），分數排序不可靠，故一律以時間為準。
+    out.sort((a, b) => (b.best.time ?? 0) - (a.best.time ?? 0));
     return out;
   }, [data]);
   const total = data?.pages.reduce((n, p) => n + p.results.length, 0) ?? 0;

@@ -44,9 +44,9 @@ function rehypeMarkKeyword(query: string) {
       if (!node || !Array.isArray(node.children)) return;
       if (
         node.type === "element" &&
-        (node.tagName === "code" || node.tagName === "pre" || hasClass(node, "katex"))
+        (node.tagName === "pre" || hasClass(node, "katex"))
       ) {
-        return; // 不進入程式碼／數學子樹
+        return; // 不進入多行程式碼區塊（pre）／數學子樹；inline code 仍高亮，命中才可跳轉
       }
       const next: any[] = [];
       for (const child of node.children) {
