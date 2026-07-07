@@ -8,6 +8,7 @@ Run with:
 from __future__ import annotations
 
 import os
+import sqlite3
 import tempfile
 import threading
 import time
@@ -15,7 +16,18 @@ import unittest
 
 from fastapi import HTTPException
 
-from ai_archive import api, rag
+from ai_archive import api, rag, store
+
+
+def _stub_db(path: str) -> None:
+    """建一個通過 schema-version guard 的空 stub DB。
+
+    這些測試驗的是 model lifecycle、不是 schema，只需要一個能過 `_require_db()`
+    guard 的檔案（stamp user_version 即可）；rag.retrieve 已被 mock，不會真的查表。
+    """
+    con = sqlite3.connect(path)
+    con.execute(f"PRAGMA user_version = {store.SCHEMA_VERSION}")
+    con.close()
 
 
 class ApiAskModelLifecycle(unittest.TestCase):
@@ -46,7 +58,7 @@ class ApiAskModelLifecycle(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             api.DB_PATH = os.path.join(tmp, "archive.db")
-            open(api.DB_PATH, "w", encoding="utf-8").close()
+            _stub_db(api.DB_PATH)
 
             retrieve_entered = threading.Event()
             allow_retrieve_return = threading.Event()
@@ -133,7 +145,7 @@ class ApiAskModelLifecycle(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             api.DB_PATH = os.path.join(tmp, "archive.db")
-            open(api.DB_PATH, "w", encoding="utf-8").close()
+            _stub_db(api.DB_PATH)
 
             def fail_retrieve(*args, **kwargs):
                 raise AssertionError("retrieve should not run without a loaded model")
