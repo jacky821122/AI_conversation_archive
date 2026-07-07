@@ -15,6 +15,10 @@ from typing import Iterable
 
 from .schema import Conversation
 
+# DB schema 版本。每次改動 messages/conversations 結構就 +1，讓舊 DB 能被偵測。
+# 1 = 含 messages.attachments 欄位。
+SCHEMA_VERSION = 1
+
 _SCHEMA = """
 CREATE TABLE conversations (
     id          TEXT PRIMARY KEY,
@@ -77,6 +81,7 @@ def build(convs: Iterable[Conversation], db_path: str) -> dict:
         con.execute(
             "INSERT INTO messages_fts(rowid, text) SELECT rowid, text FROM messages"
         )
+        con.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         con.commit()
         return {"conversations": n_conv, "messages": n_msg,
                 "per_platform": per_platform}
@@ -172,6 +177,15 @@ def search(db_path: str, query: str, platform: str | None = None,
                 (f"%{query}%", *plat_args, limit, offset),
             ).fetchall()
         return [dict(r) for r in rows]
+    finally:
+        con.close()
+
+
+def schema_version(db_path: str) -> int:
+    """回傳 DB 的 PRAGMA user_version（未 stamp 過的舊 DB 為 0）。"""
+    con = sqlite3.connect(db_path)
+    try:
+        return con.execute("PRAGMA user_version").fetchone()[0]
     finally:
         con.close()
 

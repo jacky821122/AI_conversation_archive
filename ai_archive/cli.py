@@ -28,6 +28,19 @@ def _fmt_time(t: float | None) -> str:
     return datetime.fromtimestamp(t, tz=timezone.utc).astimezone().strftime("%Y-%m-%d")
 
 
+def _require_db(out: str) -> str:
+    """回傳 archive.db 路徑；不存在或結構過舊則報錯要求重跑 ingest。"""
+    db = os.path.join(out, "archive.db")
+    if not os.path.exists(db):
+        raise SystemExit(f"找不到資料庫 {db}；請先執行 `python -m ai_archive.cli ingest`")
+    ver = store.schema_version(db)
+    if ver < store.SCHEMA_VERSION:
+        raise SystemExit(
+            f"資料庫結構過舊（v{ver} < v{store.SCHEMA_VERSION}）；"
+            f"請重新執行 `python -m ai_archive.cli ingest` 重建 {db}")
+    return db
+
+
 def cmd_ingest(args) -> None:
     os.makedirs(args.out, exist_ok=True)
     if getattr(args, "claude_path", None):
@@ -59,7 +72,7 @@ def cmd_ingest(args) -> None:
 
 
 def cmd_search(args) -> None:
-    db = os.path.join(args.out, "archive.db")
+    db = _require_db(args.out)
     rows = store.search(db, args.query, limit=args.limit)
     if not rows:
         print("（無命中）")
@@ -75,7 +88,7 @@ def cmd_search(args) -> None:
 
 def cmd_list(args) -> None:
     """對話清單：list / filter（platform、month）/ order，預設人讀，--json 給 agent。"""
-    db = os.path.join(args.out, "archive.db")
+    db = _require_db(args.out)
     items = store.list_conversations(db, platform=args.platform, month=args.month,
                                      order=args.order, limit=args.limit,
                                      offset=args.offset)
@@ -100,7 +113,7 @@ def cmd_list(args) -> None:
 
 def cmd_get(args) -> None:
     """取單段對話全文：meta + 全部訊息。預設人讀，--json 給 agent。"""
-    db = os.path.join(args.out, "archive.db")
+    db = _require_db(args.out)
     conv = store.get_conversation(db, args.conv_id)
     if conv is None:
         raise SystemExit(f"查無對話 {args.conv_id}")
@@ -122,7 +135,7 @@ def cmd_get(args) -> None:
 
 
 def cmd_stats(args) -> None:
-    db = os.path.join(args.out, "archive.db")
+    db = _require_db(args.out)
     st = store.stats(db)
     print(f"對話總數: {st['conversations']}")
     print(f"訊息總數: {st['messages']}")

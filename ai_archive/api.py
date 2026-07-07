@@ -61,6 +61,15 @@ def _require_db() -> str:
             status_code=503,
             detail=f"找不到資料庫 {DB_PATH}；請先執行 `python -m ai_archive.cli ingest`",
         )
+    ver = store.schema_version(DB_PATH)
+    if ver < store.SCHEMA_VERSION:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"資料庫結構過舊（v{ver} < v{store.SCHEMA_VERSION}）；"
+                f"請重新執行 `python -m ai_archive.cli ingest` 重建 {DB_PATH}"
+            ),
+        )
     return DB_PATH
 
 
