@@ -48,6 +48,21 @@ CREATE VIRTUAL TABLE messages_fts USING fts5(
 """
 
 
+def _dedupe(convs: Iterable[Conversation]) -> list[Conversation]:
+    """依 id 去重：同 id 出現多次（如新舊兩份匯出快照重疊）時保留 update_time 較新的一份。
+
+    平台匯出常是完整重匯出（新快照是舊快照的 superset），data/ 底下沒即時清掉
+    舊快照就會撞 id。這裡在單一入口擋下來，不必動到每個 parser。
+    """
+    by_id: dict[str, Conversation] = {}
+    for c in convs:
+        prev = by_id.get(c.id)
+        if prev is not None and (c.update_time or 0) < (prev.update_time or 0):
+            continue
+        by_id[c.id] = c
+    return list(by_id.values())
+
+
 def build(convs: Iterable[Conversation], db_path: str) -> dict:
     """(重) 建資料庫；冪等：每次重建。回傳統計。"""
     con = sqlite3.connect(db_path)
@@ -61,7 +76,7 @@ def build(convs: Iterable[Conversation], db_path: str) -> dict:
         n_conv = 0
         n_msg = 0
         per_platform: dict[str, int] = {}
-        for c in convs:
+        for c in _dedupe(convs):
             con.execute(
                 "INSERT INTO conversations VALUES (?,?,?,?,?,?)",
                 (c.id, c.platform, c.title, c.create_time, c.update_time,
