@@ -1,8 +1,10 @@
 """RAG 第二大腦：混合檢索（本地 dense + FTS）→ LLM 作答並附出處。
 
 資料外流邊界僅在此：問題在本地向量化、檢索全在本地，只有「檢索到的片段」
-連同問題送生成端。生成端走 OpenAI 相容介面，預設打 agnes AI（省），
-base_url / 金鑰 / 模型皆由 .env 設定，日後換回 Claude 或別家只需改設定。
+連同問題送生成端。生成端由 RAG_PROVIDER 選擇：
+- openai（預設）：OpenAI 相容介面，預設打 agnes AI（省）；設定 AGNES_*。
+- anthropic：Anthropic Messages 介面（如企業內部 gateway）；設定 ANTHROPIC_*。
+兩者的 base_url / 金鑰 / 模型皆由 .env 設定，換供應商只需改設定。
 
 混合檢索：
 - dense：問題經 bge-m3 向量化 → vectors.db 取 top-k chunk（語意）。
@@ -18,11 +20,19 @@ import sqlite3
 from . import index, store
 from .embed import Embedder
 
-# 生成端設定（OpenAI 相容）。DEFAULT_MODEL 是硬編碼 fallback；實際預設模型
-# 由 resolve_default_model() 在呼叫時載入 .env 後解析。
+# 生成端設定。DEFAULT_MODEL 是硬編碼 fallback；實際預設模型由
+# resolve_default_model() 在呼叫時載入 .env 後解析（依 provider 而定）。
 DEFAULT_MODEL = "agnes-2.0-flash"
 DEFAULT_BASE_URL = "https://apihub.agnes-ai.com/v1"
+# Anthropic provider（如企業內部 gateway）的預設，供未在 .env 覆蓋時 fallback。
+DEFAULT_ANTHROPIC_MODEL = "Claude-Sonnet-4.6"
+DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com"
 RRF_K = 60  # RRF 常數，弱化排名靠後者的影響
+
+
+def _provider() -> str:
+    """生成端供應商：openai（預設，agnes 相容）或 anthropic（Messages API）。"""
+    return os.environ.get("RAG_PROVIDER", "openai").strip().lower()
 
 _SYSTEM = """你是使用者的資料整理助手。下面提供的「資料片段」全部出自\
 使用者本人過去與各家 AI（ChatGPT／Grok／Gemini／Claude Code）的對話紀錄，是他的想法、語氣與\
@@ -45,9 +55,17 @@ def _load_dotenv() -> None:
         pass
 
 
+def _anthropic_model() -> str:
+    """館長作答模型。用專屬 RAG_ANTHROPIC_MODEL，避免撞到 Claude Code shell
+    注入的 ANTHROPIC_MODEL（那顆是給 CLI 自己用的，會蓋掉此設定）。"""
+    return os.environ.get("RAG_ANTHROPIC_MODEL", DEFAULT_ANTHROPIC_MODEL)
+
+
 def resolve_default_model() -> str:
     """Return the default generation model after giving .env a chance to load."""
     _load_dotenv()
+    if _provider() == "anthropic":
+        return _anthropic_model()
     return os.environ.get("AGNES_MODEL", DEFAULT_MODEL)
 
 
@@ -134,12 +152,25 @@ def retrieve(question: str, out_dir: str = "out", top_k: int = 8,
 def complete(messages: list[dict], model: str | None = None,
              max_tokens: int = 4096, temperature: float | None = None,
              timeout: float | None = None, max_retries: int = 2) -> str:
-    """呼叫 OpenAI 相容生成端（預設 agnes），回傳回覆文字。
+    """呼叫生成端，回傳回覆文字。依 RAG_PROVIDER 分派 openai / anthropic。
 
     集中處理 .env 載入 / 金鑰 / base_url，供 RAG 作答與 stitch 的 LLM 審判共用。
     這是「私人資料送生成端」的唯一出口；呼叫方須自負只送該送的內容。
     """
     _load_dotenv()  # 載入專案根 .env（金鑰/base_url/模型）
+    if _provider() == "anthropic":
+        return _complete_anthropic(messages, model=model, max_tokens=max_tokens,
+                                   temperature=temperature, timeout=timeout,
+                                   max_retries=max_retries)
+    return _complete_openai(messages, model=model, max_tokens=max_tokens,
+                            temperature=temperature, timeout=timeout,
+                            max_retries=max_retries)
+
+
+def _complete_openai(messages: list[dict], model: str | None,
+                     max_tokens: int, temperature: float | None,
+                     timeout: float | None, max_retries: int) -> str:
+    """OpenAI 相容生成端（預設 agnes）。"""
     try:
         from openai import OpenAI
     except ImportError:
@@ -161,6 +192,111 @@ def complete(messages: list[dict], model: str | None = None,
         kwargs["temperature"] = temperature
     resp = client.chat.completions.create(**kwargs)
     return resp.choices[0].message.content or ""
+
+
+def _parse_custom_headers(raw: str) -> dict[str, str]:
+    """把 ANTHROPIC_CUSTOM_HEADERS 解析成 dict。
+
+    支援 Claude Code 慣用格式：多個 header 以換行分隔，每行 `Name: value`。
+    """
+    headers: dict[str, str] = {}
+    for line in raw.replace("\\n", "\n").splitlines():
+        line = line.strip()
+        if not line or ":" not in line:
+            continue
+        name, _, value = line.partition(":")
+        name = name.strip()
+        if name:
+            headers[name] = value.strip()
+    return headers
+
+
+def _anthropic_messages(messages: list[dict]) -> tuple[str | None, list[dict]]:
+    """把 OpenAI 風格 messages 轉成 Anthropic Messages：抽出 system，其餘保留。"""
+    system_parts: list[str] = []
+    converted: list[dict] = []
+    for m in messages:
+        role = m.get("role")
+        content = m.get("content", "")
+        if role == "system":
+            if content:
+                system_parts.append(content)
+            continue
+        converted.append({"role": role, "content": content})
+    system = "\n\n".join(system_parts) if system_parts else None
+    return system, converted
+
+
+def _resolve_ca_bundle() -> str | bool:
+    """挑一個 httpx 可用的 CA bundle。
+
+    httpx 預設走 certifi，不認公司 proxy（如 Zscaler）換發的憑證，會 SSL
+    CERTIFICATE_VERIFY_FAILED。企業環境慣例是把 root 灌進系統 CA store，故
+    優先用系統 bundle（含完整中間層），其次才是環境變數指定的自訂 bundle
+    （可能只是缺頂層的片段鏈）。都沒有就回 True 讓 httpx 用 certifi 預設。
+    """
+    candidates = [
+        "/etc/ssl/certs/ca-certificates.crt",   # Debian/Ubuntu 系統 store
+        "/etc/pki/tls/certs/ca-bundle.crt",     # RHEL/Fedora 系統 store
+        os.environ.get("SSL_CERT_FILE"),
+        os.environ.get("REQUESTS_CA_BUNDLE"),
+    ]
+    for ca in candidates:
+        if ca and os.path.exists(ca):
+            return ca
+    return True
+
+
+def _complete_anthropic(messages: list[dict], model: str | None,
+                        max_tokens: int, temperature: float | None,
+                        timeout: float | None, max_retries: int) -> str:
+    """Anthropic Messages 生成端（如企業內部 gateway）。用 httpx 直打，免額外依賴。"""
+    import httpx
+
+    base_url = os.environ.get("ANTHROPIC_BASE_URL", DEFAULT_ANTHROPIC_BASE_URL).rstrip("/")
+    resolved_model = model if model is not None else _anthropic_model()
+
+    headers: dict[str, str] = {
+        "anthropic-version": os.environ.get("ANTHROPIC_VERSION", "2023-06-01"),
+        "content-type": "application/json",
+    }
+    headers.update(_parse_custom_headers(os.environ.get("ANTHROPIC_CUSTOM_HEADERS", "")))
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if api_key:
+        headers.setdefault("x-api-key", api_key)
+    if not api_key and "Ocp-Apim-Subscription-Key" not in headers:
+        raise SystemExit(
+            "未設定 Anthropic 生成端金鑰（ANTHROPIC_API_KEY 或 "
+            "ANTHROPIC_CUSTOM_HEADERS 帶訂閱金鑰）；見 .env.example")
+
+    system, converted = _anthropic_messages(messages)
+    payload: dict = {"model": resolved_model, "max_tokens": max_tokens,
+                     "messages": converted}
+    if system:
+        payload["system"] = system
+    if temperature is not None:
+        payload["temperature"] = temperature
+
+    verify = _resolve_ca_bundle()
+
+    last_exc: Exception | None = None
+    for attempt in range(max_retries + 1):
+        try:
+            resp = httpx.post(f"{base_url}/v1/messages", headers=headers,
+                              json=payload, timeout=timeout or 60.0,
+                              verify=verify)
+            resp.raise_for_status()
+            data = resp.json()
+            return "".join(
+                block.get("text", "")
+                for block in data.get("content", [])
+                if block.get("type") == "text"
+            )
+        except httpx.HTTPError as e:
+            last_exc = e
+            if attempt >= max_retries:
+                break
+    raise SystemExit(f"Anthropic 生成端請求失敗：{last_exc}")
 
 
 def _format_time(t: float | None) -> str:
