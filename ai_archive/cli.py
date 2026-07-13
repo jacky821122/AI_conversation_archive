@@ -33,10 +33,10 @@ def _require_db(out: str) -> str:
     db = os.path.join(out, "archive.db")
     if not os.path.exists(db):
         raise SystemExit(f"找不到資料庫 {db}；請先執行 `python -m ai_archive.cli ingest`")
-    ver = store.schema_version(db)
-    if ver < store.SCHEMA_VERSION:
+    reason = store.incompatibility(db)
+    if reason:
         raise SystemExit(
-            f"資料庫結構過舊（v{ver} < v{store.SCHEMA_VERSION}）；"
+            f"資料庫結構不相容（{reason}）；"
             f"請重新執行 `python -m ai_archive.cli ingest` 重建 {db}")
     return db
 

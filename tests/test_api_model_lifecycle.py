@@ -20,14 +20,12 @@ from ai_archive import api, rag, store
 
 
 def _stub_db(path: str) -> None:
-    """建一個通過 schema-version guard 的空 stub DB。
+    """建一個通過結構 guard 的空 stub DB。
 
     這些測試驗的是 model lifecycle、不是 schema，只需要一個能過 `_require_db()`
-    guard 的檔案（stamp user_version 即可）；rag.retrieve 已被 mock，不會真的查表。
+    guard 的檔案（結構齊全的空 DB 即可）；rag.retrieve 已被 mock，不會真的查表。
     """
-    con = sqlite3.connect(path)
-    con.execute(f"PRAGMA user_version = {store.SCHEMA_VERSION}")
-    con.close()
+    store.build([], path)
 
 
 class ApiAskModelLifecycle(unittest.TestCase):

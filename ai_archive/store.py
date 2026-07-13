@@ -184,11 +184,40 @@ def search(db_path: str, query: str, platform: str | None = None,
         con.close()
 
 
-def schema_version(db_path: str) -> int:
-    """回傳 DB 的 PRAGMA user_version（未 stamp 過的舊 DB 為 0）。"""
+# 讀取路徑實際會用到的表與欄位。guard 檢查「結構」而非單純版本號：純新增欄位
+# 不會讓舊 DB 失效，只有真的少了讀取需要的表/欄位才擋下來，並回一句人可讀的原因。
+# 之後若拿掉/改名這裡列的東西，記得同步更新。
+_REQUIRED_COLUMNS = {
+    "conversations": {"id", "platform", "title", "create_time",
+                      "update_time", "n_messages"},
+    "messages": {"conv_id", "idx", "role", "text", "time", "attachments"},
+}
+_REQUIRED_TABLES = ("messages_fts",)
+
+
+def incompatibility(db_path: str) -> str | None:
+    """檢查 DB 結構是否夠新到能被目前的讀取路徑使用。
+
+    回傳 None 代表相容；否則回傳一句描述缺什麼的訊息（供 UI／CLI 提示重跑 ingest）。
+    以實際結構為準，比對版本號更寬容：舊 DB 只要欄位齊全就照樣可讀。
+    """
     con = sqlite3.connect(db_path)
     try:
-        return con.execute("PRAGMA user_version").fetchone()[0]
+        for table, needed in _REQUIRED_COLUMNS.items():
+            info = con.execute(f"PRAGMA table_info({table})").fetchall()
+            if not info:
+                return f"缺少資料表 {table}"
+            have = {r[1] for r in info}
+            missing = needed - have
+            if missing:
+                return f"資料表 {table} 缺少欄位：{', '.join(sorted(missing))}"
+        for table in _REQUIRED_TABLES:
+            exists = con.execute(
+                "SELECT 1 FROM sqlite_master WHERE name = ?", (table,)
+            ).fetchone()
+            if not exists:
+                return f"缺少資料表 {table}"
+        return None
     finally:
         con.close()
 
