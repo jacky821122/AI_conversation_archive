@@ -8,6 +8,15 @@ prose only：message.content 為字串直接取；為 block 陣列則只留 type
 的 block（丟掉 thinking / tool_use / tool_result）。一個 session = 一個
 Conversation；丟掉「沒有任何含文字 user 訊息」的 trivial session。
 
+**queued prompt**：使用者趁 Claude 還在跑時打字送出的訊息，CLI 不會寫成
+type=="user" 的記錄，只留 type=="attachment" 且 attachment.type=="queued_command"
+的那一筆（帶 prompt 欄）。只認 commandMode=="prompt"（真人輸入）；
+commandMode=="task-notification" 是背景任務完成通知，機器產生的，不收。
+不收會造成「真人發言消失、只剩 assistant 自言自語」，語料庫無法重現對話。
+
+同理，CLI 塞進 user 角色的操作紀錄（<task-notification>、斜線指令叫用與其 stdout、
+caveat 樣板、system-reminder）也不是人講的話，一併濾掉；見 _UI_NOISE_PREFIXES。
+
 另外把開頭為 "API Error:" 的 assistant 訊息當噪音濾掉（網路/設定壞掉時的回應）；
 濾掉後若整個 session 沒有任何 assistant 文字，視為「問了但沒得到有用回應」的
 廢 session 一併丟棄。用 startswith 精準命中真 error，不會誤殺內文討論 API error
@@ -35,6 +44,22 @@ from ..schema import Conversation, Message
 from ._util import iso_to_epoch
 
 _DEFAULT_ROOT = "~/.claude/projects"
+
+# CLI 自己塞進 user 角色的操作紀錄，不是人講的話：斜線指令的叫用（/exit、/model、
+# /clear…）、它們的 stdout、告訴模型「別回應這些」的樣板 caveat、harness 的
+# system-reminder。留著會在對話尾端堆一坨雜訊，也讓「使用者說了什麼」失真。
+#
+# 刻意**不含** <bash-input> / <bash-stdout>：那是使用者用 `!` 主動把指令與輸出送進
+# 對話、模型也據此回應的內容，屬於對話的一部分，拿掉會跟漏掉發言一樣破壞重現性。
+_UI_NOISE_PREFIXES = (
+    "<task-notification>",     # 背景任務完成通知（harness 注入）
+    "<local-command-caveat>",
+    "<local-command-stdout>",
+    "<command-name>",
+    "<command-message>",
+    "<command-args>",
+    "<system-reminder>",
+)
 
 
 def _root() -> str:
@@ -66,6 +91,21 @@ def _text_from_content(content) -> str:
     return ""
 
 
+def _queued_prompt(rec: dict) -> tuple[str, str] | None:
+    """真人 queued prompt → (text, timestamp)；其餘（含背景通知）回 None。"""
+    if rec.get("type") != "attachment":
+        return None
+    att = rec.get("attachment")
+    if not isinstance(att, dict) or att.get("type") != "queued_command":
+        return None
+    if att.get("commandMode") != "prompt":
+        return None
+    text = (att.get("prompt") or "").strip()
+    if not text:
+        return None
+    return text, att.get("timestamp") or rec.get("timestamp") or ""
+
+
 def _parse_file(path: str) -> Conversation | None:
     session_id = os.path.splitext(os.path.basename(path))[0]
     messages: list[Message] = []
@@ -78,6 +118,13 @@ def _parse_file(path: str) -> Conversation | None:
                 rec = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            queued = _queued_prompt(rec)
+            if queued is not None:
+                # 排隊送出的真人發言；沒有對應的 type=="user" 記錄，這裡是唯一來源
+                messages.append(Message(
+                    role="user", text=queued[0], time=iso_to_epoch(queued[1])
+                ))
+                continue
             if rec.get("type") not in ("user", "assistant"):
                 continue
             msg = rec.get("message")
@@ -89,6 +136,9 @@ def _parse_file(path: str) -> Conversation | None:
             role = "user" if rec.get("type") == "user" else "assistant"
             # API Error 開頭的 assistant 回應＝噪音（網路/設定壞掉），丟掉
             if role == "assistant" and text.startswith("API Error:"):
+                continue
+            # CLI 操作紀錄（斜線指令、其 stdout、caveat、通知）不是人講的話，丟掉
+            if role == "user" and text.startswith(_UI_NOISE_PREFIXES):
                 continue
             t = iso_to_epoch(rec.get("timestamp") or "")
             messages.append(Message(role=role, text=text, time=t))

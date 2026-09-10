@@ -88,13 +88,64 @@ def main():
              "message": {"role": "assistant", "content": "done"}},
         ])
 
+        # Session F: queued prompt（真人趁 Claude 忙碌時送出）只存在於
+        # attachment 記錄裡，必須收；task-notification 則不收（機器產生）。
+        _write_session(root, "proj-f", "sess-f", [
+            {"type": "user", "sessionId": "sess-f",
+             "timestamp": "2026-06-24T13:00:00.000Z",
+             "message": {"role": "user", "content": "先跑起來"}},
+            {"type": "assistant", "sessionId": "sess-f",
+             "timestamp": "2026-06-24T13:00:02.000Z",
+             "message": {"role": "assistant", "content": "開跑了"}},
+            {"type": "queue-operation", "operation": "enqueue",
+             "timestamp": "2026-06-24T13:00:30.000Z", "content": "順便看一下 log"},
+            {"type": "user", "sessionId": "sess-f",
+             "timestamp": "2026-06-24T13:01:00.000Z",
+             "message": {"role": "user", "content":
+                 "<task-notification>\n<task-id>abc</task-id>\n</task-notification>"}},
+            {"type": "attachment", "sessionId": "sess-f",
+             "timestamp": "2026-06-24T13:01:05.000Z",
+             "attachment": {"type": "queued_command", "commandMode": "prompt",
+                            "origin": {"kind": "human"},
+                            "timestamp": "2026-06-24T13:00:30.000Z",
+                            "prompt": "順便看一下 log"}},
+            {"type": "attachment", "sessionId": "sess-f",
+             "timestamp": "2026-06-24T13:01:06.000Z",
+             "attachment": {"type": "queued_command",
+                            "commandMode": "task-notification",
+                            "timestamp": "2026-06-24T13:01:06.000Z",
+                            "prompt": "<task-notification>bg done</task-notification>"}},
+            {"type": "assistant", "sessionId": "sess-f",
+             "timestamp": "2026-06-24T13:01:10.000Z",
+             "message": {"role": "assistant", "content": "log 看完了"}},
+            # CLI 操作紀錄：斜線指令、caveat、其 stdout → 全部不算對話。
+            {"type": "user", "sessionId": "sess-f",
+             "timestamp": "2026-06-24T13:02:00.000Z",
+             "message": {"role": "user", "content":
+                 "<local-command-caveat>Caveat: ...</local-command-caveat>"}},
+            {"type": "user", "sessionId": "sess-f",
+             "timestamp": "2026-06-24T13:02:01.000Z",
+             "message": {"role": "user", "content":
+                 "<command-name>/exit</command-name>\n<command-args></command-args>"}},
+            {"type": "user", "sessionId": "sess-f",
+             "timestamp": "2026-06-24T13:02:02.000Z",
+             "message": {"role": "user", "content":
+                 "<local-command-stdout>Bye!</local-command-stdout>"}},
+            # 但 `!` 送進來的指令與輸出是對話的一部分 → 必須留。
+            {"type": "user", "sessionId": "sess-f",
+             "timestamp": "2026-06-24T13:02:03.000Z",
+             "message": {"role": "user", "content":
+                 "<bash-input>git status</bash-input>"}},
+        ])
+
         os.environ["CLAUDE_PROJECTS"] = root
         os.environ["CLAUDE_EXCLUDE_PROMPTS"] = "# Bot,ping"
         convs = list(claude.parse("ignored-data-dir"))
 
     by_id = {c.id: c for c in convs}
-    # 只剩 A（正常）與 D（混雜留下）；B/C 丟棄，E 命中排除前綴丟棄。
-    assert set(by_id) == {"claude:sess-a", "claude:sess-d"}, sorted(by_id)
+    # 只剩 A（正常）、D（混雜留下）、F（queued prompt）；B/C 丟棄，E 命中排除前綴丟棄。
+    assert set(by_id) == {"claude:sess-a", "claude:sess-d",
+                          "claude:sess-f"}, sorted(by_id)
     c = by_id["claude:sess-a"]
     assert c.platform == "claude", c.platform
     assert c.title == "幫我看這個 bug", repr(c.title)
@@ -112,6 +163,19 @@ def main():
     assert len(d.messages) == 2, [m.text for m in d.messages]
     assert all(not m.text.startswith("API Error:") for m in d.messages)
     assert d.messages[1].text == "好了，這是答案"
+    # Session F：queued prompt 補回來、task-notification（兩種形式）都不留。
+    fm = by_id["claude:sess-f"].messages
+    assert [m.role for m in fm] == \
+        ["user", "assistant", "user", "assistant", "user"], \
+        [(m.role, m.text) for m in fm]
+    assert fm[2].text == "順便看一下 log", repr(fm[2].text)
+    # CLI 操作紀錄全清（含兩種形式的 task-notification）；`!` 的 bash-input 留著。
+    for tag in ("task-notification", "local-command-caveat",
+                "local-command-stdout", "command-name"):
+        assert all(tag not in m.text for m in fm), (tag, [m.text for m in fm])
+    assert fm[4].text == "<bash-input>git status</bash-input>", repr(fm[4].text)
+    # 時間取 attachment 的入列時刻（13:00:30），不是被 dequeue 的時刻。
+    assert fm[2].time == fm[1].time + 28, (fm[1].time, fm[2].time)
     print("OK: all assertions passed")
 
 
