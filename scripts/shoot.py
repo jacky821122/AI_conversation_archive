@@ -12,6 +12,11 @@
     python scripts/shoot.py                       # 預設打 http://127.0.0.1:8765
     python scripts/shoot.py --base-url http://127.0.0.1:2448
     python scripts/shoot.py --only mobile         # 只跑手機情境
+    python scripts/shoot.py --conv 'claude:xxxx'  # 對話頁指定某段（預設取最近一段）
+
+若 playwright 自帶的瀏覽器沒下載（或版本對不上），可指向已存在的 chromium：
+    PLAYWRIGHT_CHROMIUM=$HOME/.cache/ms-playwright/chromium_headless_shell-<build>/chrome-headless-shell-linux64/chrome-headless-shell \
+        python scripts/shoot.py
 
 輸出： out/shots/<scenario>.png （out/ 已 gitignore——截圖含真實對話，絕不上 public repo）。
 """
@@ -34,7 +39,7 @@ def _save_path(name: str) -> str:
     return os.path.join(OUT_DIR, f"{name}.png")
 
 
-def run(base_url: str, only: str | None) -> None:
+def run(base_url: str, only: str | None, conv: str | None = None) -> None:
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
@@ -113,6 +118,36 @@ def run(base_url: str, only: str | None) -> None:
             saved.append("mobile-plan")
             page.close()
 
+        # ---- 對話頁（訊息泡泡：時刻、日期分隔線、長訊息摺疊）----
+        # 沒指定 --conv 就在頁內問 API 拿最近一段；截圖含真實對話，只落在 out/。
+        wants = [("desktop", DESKTOP, False), ("mobile", MOBILE, True)]
+        for label, viewport, mobile in wants:
+            if only not in (None, label):
+                continue
+            page = browser.new_page(
+                viewport=viewport,
+                **({"is_mobile": True, "has_touch": True,
+                    "device_scale_factor": 2} if mobile else {}),
+            )
+            page.goto(base_url, wait_until="networkidle")
+            cid = conv or page.evaluate(
+                """async () => {
+                    const r = await fetch('/api/conversations?limit=1&order=recent');
+                    const j = await r.json();
+                    return j.items?.[0]?.id ?? null;
+                }"""
+            )
+            if cid:
+                page.goto(f"{base_url.rstrip('/')}/c/{cid}",
+                          wait_until="networkidle")
+                page.wait_for_timeout(400)
+                name = f"{label}-conversation"
+                page.screenshot(path=_save_path(name))
+                saved.append(name)
+            else:
+                print(f"（跳過 {label}-conversation：語料庫沒有對話）")
+            page.close()
+
         browser.close()
 
     print("已輸出：")
@@ -126,8 +161,9 @@ def main() -> None:
                     help="web 介面位址（預設開發用 8765；systemd 常駐為 2448）")
     ap.add_argument("--only", choices=["mobile", "desktop"],
                     help="只跑某一種版型（預設兩種都跑）")
+    ap.add_argument("--conv", help="對話頁要截哪一段（conv id）；預設取最近一段")
     args = ap.parse_args()
-    run(args.base_url, args.only)
+    run(args.base_url, args.only, args.conv)
 
 
 if __name__ == "__main__":

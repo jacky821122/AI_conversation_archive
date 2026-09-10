@@ -157,13 +157,48 @@ export const platformMeta: Record<Platform, { label: string; color: string }> = 
   claude: { label: "Claude", color: "var(--color-claude)" },
 };
 
+// 時間一律以台灣時間（UTC+8）呈現，不跟著瀏覽器所在時區跑：語料是本人的對話，
+// 換台機器/出國看同一段對話，時間必須是同一個，否則對不上記憶也對不上其他紀錄。
+const TW_TZ = "Asia/Taipei";
+
 export function fmtDate(t: number | null): string {
   if (!t) return "—";
   return new Date(t * 1000).toLocaleDateString("zh-TW", {
+    timeZone: TW_TZ,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   });
+}
+
+/** 訊息泡泡上的時刻：24 小時制 HH:mm（台灣時間）。無時間戳回空字串。 */
+export function fmtTime(t: number | null): string {
+  if (!t) return "";
+  return new Date(t * 1000).toLocaleTimeString("zh-TW", {
+    timeZone: TW_TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+}
+
+/** 日期分隔線：2026年9月3日 週三（台灣時間）。
+ *  zh-TW 內建格式會把星期黏在日期後面（…10日週四），故分兩次格式化再自己空一格。 */
+export function fmtDayLabel(t: number): string {
+  const d = new Date(t * 1000);
+  const date = d.toLocaleDateString("zh-TW", {
+    timeZone: TW_TZ,
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const wd = d.toLocaleDateString("zh-TW", { timeZone: TW_TZ, weekday: "short" });
+  return `${date} ${wd}`;
+}
+
+/** 台灣時間的「哪一天」鍵值（YYYY-MM-DD），用來判斷要不要插分隔線。 */
+export function twDayKey(t: number): string {
+  return new Date(t * 1000).toLocaleDateString("en-CA", { timeZone: TW_TZ });
 }
 
 const MONTH_TW = [

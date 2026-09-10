@@ -2,7 +2,7 @@ import { useRef, useState, ReactNode } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
-import { api, platformMeta, fmtDate } from "../lib/api";
+import { api, platformMeta, fmtDate, fmtTime, fmtDayLabel, twDayKey } from "../lib/api";
 import Highlight from "../components/Highlight";
 import Markdown from "../components/Markdown";
 import { useFind, FindBar } from "../components/FindBar";
@@ -63,56 +63,77 @@ export default function ConversationView() {
       </header>
 
       <div ref={listRef} className="space-y-5">
-        {data.messages.map((m) => {
+        {data.messages.map((m, i) => {
           const isUser = m.role === "user";
           const isMatch = m.idx === matchIdx;
           // 命中訊息預設整則展開，讓 occurrence 一定在 DOM 裡可被 find 抓到、可捲到。
           const expanded = isMatch && m.text.length <= SAFE_FULL;
+          // 跨日（台灣時間）就插一條分隔線；沒有時間戳的訊息不觸發。
+          const prevTime = i > 0 ? data.messages[i - 1].time : null;
+          const newDay =
+            m.time != null &&
+            (prevTime == null || twDayKey(prevTime) !== twDayKey(m.time));
           return (
-            <div
-              key={m.idx}
-              data-idx={m.idx}
-              className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-            >
+            <div key={m.idx} className="space-y-5">
+              {newDay && (
+                <div className="flex items-center gap-3 pt-1" aria-hidden="true">
+                  <span className="h-px flex-1 bg-line" />
+                  <span className="font-mono text-[0.65rem] tracking-wide text-faint">
+                    {fmtDayLabel(m.time!)}
+                  </span>
+                  <span className="h-px flex-1 bg-line" />
+                </div>
+              )}
               <div
-                className={`max-w-[88%] rounded-2xl px-4 py-3 ${
-                  isUser
-                    ? "rounded-br-sm bg-ink text-paper"
-                    : "rounded-bl-sm border border-line bg-surface text-ink"
+                data-idx={m.idx}
+                className={`flex items-end gap-1.5 ${
+                  isUser ? "justify-end" : "justify-start"
                 }`}
               >
+                {/* 時刻放泡泡外側、對齊底部：使用者（右側泡泡）在左，AI（左側泡泡）在右。
+                    放在泡泡內會跟角色標籤搶同一行、窄螢幕也難讀。 */}
+                {isUser && <TimeStamp time={m.time} />}
                 <div
-                  className={`mb-1 flex items-center gap-2 font-mono text-[0.6rem] uppercase tracking-widest ${
-                    isUser ? "text-paper/50" : "text-faint"
+                  className={`max-w-[88%] rounded-2xl px-4 py-3 ${
+                    isUser
+                      ? "rounded-br-sm bg-ink text-paper"
+                      : "rounded-bl-sm border border-line bg-surface text-ink"
                   }`}
                 >
-                  <span>{isUser ? "我" : meta?.label ?? "AI"}</span>
-                  {m.attachments && m.attachments.length > 0 && (
-                    <span
-                      className={`rounded-full px-1.5 normal-case ${
-                        isUser ? "bg-paper/15 text-paper/80" : "bg-line text-muted"
-                      }`}
-                    >
-                      📎 {m.attachments.length}
-                    </span>
-                  )}
-                </div>
-                {isUser ? (
-                  <div className="whitespace-prewrap text-sm leading-relaxed">
+                  <div
+                    className={`mb-1 flex items-center gap-2 font-mono text-[0.6rem] uppercase tracking-widest ${
+                      isUser ? "text-paper/50" : "text-faint"
+                    }`}
+                  >
+                    <span>{isUser ? "我" : meta?.label ?? "AI"}</span>
+                    {m.attachments && m.attachments.length > 0 && (
+                      <span
+                        className={`rounded-full px-1.5 normal-case ${
+                          isUser ? "bg-paper/15 text-paper/80" : "bg-line text-muted"
+                        }`}
+                      >
+                        📎 {m.attachments.length}
+                      </span>
+                    )}
+                  </div>
+                  {isUser ? (
+                    <div className="whitespace-prewrap text-sm leading-relaxed">
+                      <LongContent
+                        text={m.text}
+                        dark
+                        expanded={expanded}
+                        render={(t) => (q ? <Highlight text={t} query={q} /> : t)}
+                      />
+                    </div>
+                  ) : (
                     <LongContent
                       text={m.text}
-                      dark
                       expanded={expanded}
-                      render={(t) => (q ? <Highlight text={t} query={q} /> : t)}
+                      render={(t) => <Markdown highlight={q}>{t}</Markdown>}
                     />
-                  </div>
-                ) : (
-                  <LongContent
-                    text={m.text}
-                    expanded={expanded}
-                    render={(t) => <Markdown highlight={q}>{t}</Markdown>}
-                  />
-                )}
+                  )}
+                </div>
+                {!isUser && <TimeStamp time={m.time} />}
               </div>
             </div>
           );
@@ -127,6 +148,19 @@ export default function ConversationView() {
         onClose={closeFind}
       />
     </div>
+  );
+}
+
+/** 泡泡外側的時刻（台灣時間）。無時間戳就不佔位。 */
+function TimeStamp({ time }: { time: number | null }) {
+  if (time == null) return null;
+  return (
+    <span
+      className="mb-0.5 shrink-0 font-mono text-[0.65rem] tabular-nums text-faint"
+      title={fmtDayLabel(time)}
+    >
+      {fmtTime(time)}
+    </span>
   );
 }
 
