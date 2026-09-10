@@ -2,9 +2,20 @@
 # 用途：headless 瀏覽器截圖，讓開發時（含 AI 協作者）能「看見」web UI 的實際渲染、
 # RWD、sticky、互動結果。見 docs/dev-visual-testing.md 與 scripts/shoot.py。
 #
+# 注意：pin 這行只鎖得住 Python 套件。**瀏覽器不是 Python 套件、不在 venv 裡**，是
+# `playwright install` 另外下載到 ~/.cache/ms-playwright/ 的全機共用快取（跨 venv、
+# 跨專案、連 npm 版 playwright 都共用同一個目錄）。也就是說 lib 與 browser 是兩條
+# 獨立的版本線，requirements 只鎖得住其中一條。
+#
+# 而每個 playwright 版本硬綁一個 chromium build 編號：1.60.0 需要 build 1223。
+# 快取裡若只有別的工具下載的其他 build（例 1228 / 1243），啟動會直接失敗。
+#
 # 安裝後另需下載瀏覽器： playwright install chromium
 # Linux 另需系統函式庫： playwright install-deps chromium  (需 sudo)
 #
-# 版本：第一次在乾淨機器裝成功後，請把實際可用版本 pin 在此（例 playwright==1.49.0），
-# 以確保跨機器一致。
-playwright
+# 下載不了時（例：公司 proxy 攔 TLS，pypi 出現 invalid peer certificate；uv 需加
+# --native-tls 或 UV_NATIVE_TLS=1 才會改用系統 CA），可直接指向快取裡已存在的 build，
+# 不必連網——shoot.py 支援 PLAYWRIGHT_CHROMIUM：
+#   PLAYWRIGHT_CHROMIUM=$HOME/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell \
+#       python scripts/shoot.py
+playwright==1.60.0
