@@ -48,6 +48,11 @@ def cmd_ingest(args) -> None:
             os.path.expanduser(args.claude_path))
     if getattr(args, "claude_exclude_prompts", None):
         os.environ["CLAUDE_EXCLUDE_PROMPTS"] = args.claude_exclude_prompts
+    if getattr(args, "codex_path", None):
+        os.environ["CODEX_SESSIONS"] = os.path.abspath(
+            os.path.expanduser(args.codex_path))
+    if getattr(args, "codex_exclude_prompts", None):
+        os.environ["CODEX_EXCLUDE_PROMPTS"] = args.codex_exclude_prompts
     jsonl = os.path.join(args.out, "normalized.jsonl")
     db = os.path.join(args.out, "archive.db")
 
@@ -261,7 +266,7 @@ def main(argv=None) -> None:
     p.add_argument("--out", default=_DEFAULT_OUT, help="輸出資料夾 (預設: out)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    pi = sub.add_parser("ingest", help="解析四家 → normalized.jsonl + archive.db")
+    pi = sub.add_parser("ingest", help="解析各平台 → normalized.jsonl + archive.db")
     pi.add_argument("--platforms", nargs="*", choices=list(REGISTRY),
                     help="只處理指定平台 (預設全部)")
     pi.add_argument("--claude-path", default=None,
@@ -269,6 +274,12 @@ def main(argv=None) -> None:
     pi.add_argument("--claude-exclude-prompts", default=None,
                     help="逗號分隔的首則 user 訊息前綴；命中者視為 headless "
                          "噪音(cron/ping)丟棄 (也可用 CLAUDE_EXCLUDE_PROMPTS 環境變數)")
+    pi.add_argument("--codex-path", default=None,
+                    help="Codex rollout 根目錄 (預設 $CODEX_HOME 或 ~/.codex 下的 "
+                         "sessions 與 archived_sessions)")
+    pi.add_argument("--codex-exclude-prompts", default=None,
+                    help="逗號分隔的首則 user 訊息前綴；排除 headless 噪音 session "
+                         "(也可用 CODEX_EXCLUDE_PROMPTS 環境變數)")
     pi.set_defaults(func=cmd_ingest)
 
     ps = sub.add_parser("search", help="全文檢索")

@@ -6,7 +6,7 @@
 
 ## 目標
 
-把 ChatGPT / Grok / Gemini / Claude Code 的對話匯出統一成一份個人語料庫，做成可搜尋、
+把 ChatGPT / Grok / Gemini / Claude Code / Codex 的對話匯出統一成一份個人語料庫，做成可搜尋、
 可問答的第二大腦。兩大目標：
 
 1. **RAG 第二大腦** — 用自然語言問「我之前對 X 的想法」，本地檢索 → 生成端作答附出處。
@@ -29,6 +29,7 @@ ai_archive/
     grok.py          responses → 正規化
     gemini.py        My Activity JSON → 迷你兩則對話 fragment
     claude.py        ~/.claude/projects/*.jsonl → session 對話（prose only）
+    codex.py         ~/.codex/{sessions,archived_sessions}/**/rollout-*.jsonl → session 對話
   store.py           SQLite schema + FTS5(trigram) + search/get_conversation/...
   embed.py           bge-m3 本地向量化 + 對話分塊（強制 HF_HUB_OFFLINE）
   index.py           建 out/vectors.db（float32 BLOB + 選配 sqlite-vec）+ dense 檢索
@@ -55,6 +56,7 @@ data/ (原始匯出)
   ├─ ttl/30d/…/prod-grok-backend.json        Grok
   └─ Takeout/…/Gemini Apps_JSON/我的活動.json  Gemini
 ~/.claude/projects/<cwd>/<sessionId>.jsonl    Claude Code（本機直讀，不經 data/）
+~/.codex/{sessions,archived_sessions}/**/rollout-*.jsonl  Codex（本機直讀）
         │  ingest
         ▼
 out/normalized.jsonl   統一格式，一段對話一行（後續所有階段的唯一輸入）
@@ -69,7 +71,7 @@ out/threads.json       Gemini session 還原 overlay
 
 ```jsonc
 {
-  "id": "chatgpt:<uuid>",        // grok:<uuid> / gemini:<hash> / claude:<sessionId>
+  "id": "chatgpt:<uuid>",        // grok:<uuid> / gemini:<hash> / claude:<sessionId> / codex:<sessionId>
   "platform": "chatgpt",
   "title": "...",
   "create_time": 1234567890.0,   // epoch 秒
@@ -102,6 +104,7 @@ get  --json  → {<上述欄位>, messages:[{idx, role, text, time}]}   // 依 i
 | `grok` | `data/**/prod-grok-backend.json` | responses → 正規化 |
 | `gemini` | `data/**/Gemini Apps_JSON/*.json` | My Activity，1問1答 fragment（見 Gemini session 還原） |
 | `claude` | `~/.claude/projects/<cwd>/<sessionId>.jsonl` | 本機 Claude Code session，一檔一對話，prose only |
+| `codex` | `~/.codex/{sessions,archived_sessions}/**/rollout-*.jsonl` | 本機 Codex session，一檔一對話，prose only |
 
 > **內嵌標註清理（`_util.clean_text`，ChatGPT/Grok 共用）**：ChatGPT 把連結/entity/product 等
 > 以私有區 unicode（U+E200..E201 包夾、U+E202 分段）內嵌進文字流，Grok 用 `<grok:render>` 標籤。
@@ -145,6 +148,29 @@ get  --json  → {<上述欄位>, messages:[{idx, role, text, time}]}   // 依 i
 
 回歸檢查：`PYTHONPATH=. python3 scripts/verify_claude_parser.py`（repo 無 pytest，純 stdlib
 合成 fixture 自驗 prose-only／drop-trivial／API Error 過濾）。
+
+### Codex 紀錄
+
+來源預設為 `$CODEX_HOME`（未設定則 `~/.codex`）下的 `sessions/` 與 `archived_sessions/`。
+`ingest --codex-path <dir>` / `CODEX_SESSIONS` 改成掃描單一根目錄；不存在時靜默跳過。
+維持 `parse(data_dir)` registry 契約，無新增依賴或下游平台分支。
+
+- `session_meta.payload.id`（舊版 `session_id`）作為穩定 `codex:<sessionId>`；不從檔名猜 id。
+- **user 優先 UI 事件**：舊版 `event_msg.user_message`、新版 `item_completed.UserMessage`。
+  它們代表提交的發言，可避開 `response_item` 內混入的 AGENTS／環境／skill 指令。
+  沒有 user UI 事件的紀錄才退回 `response_item.message`，逐 block 排除已知框架前綴。
+  `send_user_message_question_reply` 另取 JSON 中的 answer，保留不在 UI 事件中的選單回答。
+- **assistant 優先 `response_item.message`**：只取 `text`／`input_text`／`output_text`，保留
+  commentary 與 final；不收 analysis、reasoning、tool call/output。沒有 assistant response
+  時才退回舊版 `agent_message`／新版 `item_completed.AgentMessage`。
+- 同一角色只選一種來源，避免 event/response 重複；不以全文去重，重複提交同一句仍保留。
+  `compacted` 的 summary／replacement history 不匯入，原始 rollout 不修改。
+- 無 user 或 assistant 文字即丟棄；子 agent session 不當成人類對話匯入。`exec` session 仍
+  可匯入；`CODEX_EXCLUDE_PROMPTS` / `--codex-exclude-prompts` 可排除首則 user 命中前綴的整段。
+- 訊息時間使用 JSONL 外層 timestamp，UTC 轉 epoch；顯示沿用台灣時間。
+
+回歸檢查：`PYTHONPATH=. uv run python scripts/verify_codex_parser.py`（純 stdlib 合成 fixture，
+涵蓋舊／新事件、重複、雜訊、截斷、路徑覆蓋、封存、CLI 冪等與檢索；不使用真實語料）。
 
 ## 中文檢索（trigram）
 

@@ -72,7 +72,7 @@ export default function App() {
       {/* 手機底部留白：避免頁尾被懸浮膠囊 tab bar 遮住（含 iOS 安全區） */}
       <footer className="mx-auto max-w-5xl px-5 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 sm:pb-10">
         <p className="font-mono text-[0.65rem] text-faint">
-          你的 ChatGPT · Grok · Gemini · Claude 對話，存在本機。
+          你的 ChatGPT · Grok · Gemini · Claude · Codex 對話，存在本機。
         </p>
       </footer>
 

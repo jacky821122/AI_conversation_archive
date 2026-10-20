@@ -1,6 +1,6 @@
 # AI Conversation Archive — 使用手冊
 
-把 ChatGPT / Grok / Gemini / Claude Code 的對話匯出統一成一份個人語料庫，做成可搜尋、
+把 ChatGPT / Grok / Gemini / Claude Code / Codex 的對話匯出統一成一份個人語料庫，做成可搜尋、
 可問答的第二大腦。
 
 > 本檔是**操作手冊**（怎麼建置、怎麼跑）。專案架構與設計原理見 `ARCHITECTURE.md`；
@@ -38,10 +38,16 @@ Claude Code 不必放進 `data/` —— 直接讀本機 `~/.claude/projects/`（
 session 可用 `CLAUDE_EXCLUDE_PROMPTS`（或 `--claude-exclude-prompts`）依「首則 user 訊息前綴」排除，
 個人前綴清單建議放 `~/.zshrc.local`。
 
+Codex 也直接讀本機：預設掃描 `$CODEX_HOME`（未設定則 `~/.codex`）下的 `sessions/` 與
+`archived_sessions/`，不需複製到 `data/`。用 `--codex-path <dir>` 或 `CODEX_SESSIONS` 可指定
+單一 rollout 根目錄（遞迴尋找 `rollout-*.jsonl`）。只保留使用者與 assistant 文字，不匯入
+工具輸出、推理或子 agent session；headless 噪音可用 `CODEX_EXCLUDE_PROMPTS` 或
+`--codex-exclude-prompts` 依首則 user 訊息前綴排除。
+
 ## 常用指令
 
 ```bash
-python -m ai_archive.cli ingest            # 解析四家 → normalized.jsonl + archive.db
+python -m ai_archive.cli ingest            # 解析所有平台 → normalized.jsonl + archive.db
 python -m ai_archive.cli stitch            # Gemini session 還原 → out/threads.json
 python -m ai_archive.cli index             # 建向量索引 out/vectors.db（需 RAG 依賴）
 python -m ai_archive.cli list               # 對話清單（--platform/--month/--order/--limit/--offset，可 --json）
@@ -56,6 +62,18 @@ python -m ai_archive.cli web               # 啟動 localhost web 介面
 可選全域旗標：`--data <dir>`（預設 `data`）、`--out <dir>`（預設 `out`）。
 `ingest` 專屬：`--platforms chatgpt grok`（只處理指定平台）、`--claude-path <dir>`、
 `--claude-exclude-prompts '<前綴1,前綴2>'`（依首則 user 訊息前綴排除 headless 噪音 session）。
+Codex 對應旗標為 `--codex-path <dir>`、`--codex-exclude-prompts '<前綴1,前綴2>'`。
+可用 `list --platform codex --json` 列出匯入後的 Codex 對話。
+
+試匯入 Codex（獨立輸出，不覆蓋現有語料庫）：
+
+```bash
+uv run python -m ai_archive.cli --out out/codex-preview ingest --platforms codex
+uv run python -m ai_archive.cli --out out/codex-preview list --platform codex --json
+```
+
+正式語料庫要保留其他平台，請重跑預設全平台 `ingest`，不要對正式 `out/` 使用
+`--platforms codex`（`ingest` 會覆蓋輸出）。要納入語意檢索／RAG，再重跑 `index`。
 
 ### 完整刷新順序（含 Gemini session 還原）
 
@@ -69,6 +87,7 @@ index    # vectors.db 同樣套 overlay
 只更新資料（沒改程式）時，重跑 `ingest`（必要時加 `stitch` + `index`）即可，web 唯讀讀同一個 DB。
 
 回歸檢查（Claude parser）：`PYTHONPATH=. python3 scripts/verify_claude_parser.py`。
+Codex parser 與 CLI 回歸：`PYTHONPATH=. uv run python scripts/verify_codex_parser.py`。
 
 ## Web 介面
 

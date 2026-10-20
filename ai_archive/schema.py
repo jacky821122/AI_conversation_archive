@@ -38,8 +38,8 @@ class Message:
 
 @dataclass
 class Conversation:
-    id: str  # 例: "chatgpt:<uuid>" / "grok:<uuid>" / "gemini:<hash>" / "claude:<sessionId>"
-    platform: str  # "chatgpt" | "grok" | "gemini" | "claude"
+    id: str  # 例: "chatgpt:<uuid>" / "grok:<uuid>" / "gemini:<hash>" / "claude:<sessionId>" / "codex:<sessionId>"
+    platform: str  # "chatgpt" | "grok" | "gemini" | "claude" | "codex"
     title: str
     create_time: float | None
     update_time: float | None
