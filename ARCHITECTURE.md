@@ -165,6 +165,9 @@ get  --json  → {<上述欄位>, messages:[{idx, role, text, time}]}   // 依 i
   時才退回舊版 `agent_message`／新版 `item_completed.AgentMessage`。
 - 同一角色只選一種來源，避免 event/response 重複；不以全文去重，重複提交同一句仍保留。
   `compacted` 的 summary／replacement history 不匯入，原始 rollout 不修改。
+- `/import` 匯入的其他 agent 舊 session（`task_started.turn_id` 為 `external-import-turn-*`）
+  整段略過：那是別的平台（如 Claude Code）的副本，時間戳卻是匯入當下，留著會跨平台重複並
+  錯置時間；只保留匯入後真正在 Codex 進行的回合。
 - 無 user 或 assistant 文字即丟棄；子 agent session 不當成人類對話匯入。`exec` session 仍
   可匯入；`CODEX_EXCLUDE_PROMPTS` / `--codex-exclude-prompts` 可排除首則 user 命中前綴的整段。
 - 訊息時間使用 JSONL 外層 timestamp，UTC 轉 epoch；顯示沿用台灣時間。

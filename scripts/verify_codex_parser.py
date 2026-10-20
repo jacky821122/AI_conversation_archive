@@ -169,6 +169,25 @@ def main() -> None:
             message("user", "委派工作"), message("assistant", "委派回答"),
         ])
         assert codex._parse_file(str(child)) is None
+        started = lambda turn: record("event_msg", {"type": "task_started", "turn_id": turn})
+        imported = [
+            record("session_meta", {"id": "imported", "source": "cli"}),
+            started("external-import-turn-1"),
+            record("event_msg", {"type": "user_message", "message": "從 Claude 匯入的舊問題"}),
+            message("user", "從 Claude 匯入的舊問題"), message("assistant", "匯入的舊回答"),
+        ]
+        only_import = write_session(home / "import-fixtures", "import-only", imported)
+        assert codex._parse_file(str(only_import)) is None
+        continued = write_session(home / "import-fixtures", "import-continued", [
+            *imported, started("turn-2"),
+            record("event_msg", {"type": "user_message", "message": "匯入後的新問題"}, 8),
+            message("user", "匯入後的新問題", 8), message("assistant", "新回答", 9),
+        ])
+        assert [item.text for item in codex._parse_file(str(continued)).messages] == [
+            "匯入後的新問題", "新回答",
+        ]
+        only_import.unlink()
+        continued.unlink()
         with patch.dict(os.environ, {"CODEX_EXCLUDE_PROMPTS": " irrelevant, 測試本機 "}):
             assert codex._parse_file(str(normal)) is None
             assert codex._parse_file(str(canonical)) is not None

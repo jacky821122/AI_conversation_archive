@@ -70,6 +70,9 @@ def _parse_file(path: str) -> Conversation | None:
     responses: dict[str, list[tuple[int, Message]]] = {"user": [], "assistant": []}
     events: dict[str, list[tuple[int, Message]]] = {"user": [], "assistant": []}
     replies: list[tuple[int, Message]] = []
+    # /import 把其他 agent（如 Claude Code）的舊 session 複製成 external-import-turn-*，
+    # 時間是匯入當下；這些是別的平台的重複副本，只保留匯入後真正在 Codex 進行的回合。
+    imported = False
     with open(path, encoding="utf-8") as stream:
         for position, line in enumerate(stream):
             try:
@@ -89,6 +92,10 @@ def _parse_file(path: str) -> Conversation | None:
                 ):
                     return None
                 session_id = payload.get("id") or payload.get("session_id")
+                continue
+            if record_type == "event_msg" and payload.get("type") == "task_started":
+                imported = str(payload.get("turn_id") or "").startswith("external-import")
+            if imported:
                 continue
             if record_type == "response_item" and payload.get("type") == "message":
                 role = payload.get("role")
