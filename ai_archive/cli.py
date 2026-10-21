@@ -10,8 +10,12 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
+import sys
+import tempfile
+import time
 from datetime import datetime, timezone
 
 from . import store
@@ -41,6 +45,27 @@ def _require_db(out: str) -> str:
     return db
 
 
+def _tmp_path(path: str) -> str:
+    fd, tmp = tempfile.mkstemp(prefix=os.path.basename(path) + ".",
+                               dir=os.path.dirname(path) or ".")
+    os.close(fd)
+    os.remove(tmp)  # 只要唯一檔名；sqlite 自己建檔
+    return tmp
+
+
+def _refresh_if_stale(args) -> None:
+    """--max-age N：archive.db 不存在或超過 N 分鐘沒更新就先重跑 ingest。
+
+    給 agent 用「查之前順便確保新鮮」，免排程。ingest 訊息導到 stderr，
+    不汙染 --json 的 stdout。
+    """
+    db = os.path.join(args.out, "archive.db")
+    if os.path.exists(db) and time.time() - os.path.getmtime(db) < args.max_age * 60:
+        return
+    with contextlib.redirect_stdout(sys.stderr):
+        cmd_ingest(args)
+
+
 def cmd_ingest(args) -> None:
     os.makedirs(args.out, exist_ok=True)
     if getattr(args, "claude_path", None):
@@ -56,15 +81,21 @@ def cmd_ingest(args) -> None:
     jsonl = os.path.join(args.out, "normalized.jsonl")
     db = os.path.join(args.out, "archive.db")
 
-    platforms = args.platforms or list(REGISTRY)
+    platforms = getattr(args, "platforms", None) or list(REGISTRY)
     convs = list(parse_all(args.data, platforms))
-    n = write_jsonl(convs, jsonl)  # raw fragments，永不被 overlay 改寫
+    # 先寫暫存檔再 os.replace：並行的讀取端（或另一個 --max-age 觸發的 ingest）
+    # 只會看到完整的舊檔或新檔，不會讀到建到一半的庫
+    tmp_jsonl = _tmp_path(jsonl)
+    n = write_jsonl(convs, tmp_jsonl)  # raw fragments，永不被 overlay 改寫
 
     # overlay：若已有 threads.json，把 Gemini fragment 合併成 session 再建庫
     from . import stitch
     view = stitch.apply_threads(convs, args.out)
     threaded = len(view) != len(convs)
-    st = store.build(iter(view), db)
+    tmp_db = _tmp_path(db)
+    st = store.build(iter(view), tmp_db)
+    os.replace(tmp_jsonl, jsonl)
+    os.replace(tmp_db, db)
 
     print(f"✓ 正規化 {n} 段對話（raw）→ {jsonl}")
     if threaded:
@@ -78,7 +109,11 @@ def cmd_ingest(args) -> None:
 
 def cmd_search(args) -> None:
     db = _require_db(args.out)
-    rows = store.search(db, args.query, limit=args.limit)
+    rows = store.search(db, args.query, limit=args.limit, project=args.project)
+    if args.json:
+        print(json.dumps({"query": args.query, "project": args.project,
+                          "count": len(rows), "items": rows}, ensure_ascii=False))
+        return
     if not rows:
         print("（無命中）")
         return
@@ -88,7 +123,7 @@ def cmd_search(args) -> None:
             snippet = snippet[:120] + "…"
         print(f"[{r['platform']:<7} {_fmt_time(r['time'])}] {r['title']}")
         print(f"    {r['role']}: {snippet}")
-        print(f"    └ {r['conv_id']} #{r['idx']}")
+        print(f"    └ {r['conv_id']} #{r['idx']}" + (f"  ({r['cwd']})" if r["cwd"] else ""))
 
 
 def cmd_list(args) -> None:
@@ -96,11 +131,13 @@ def cmd_list(args) -> None:
     db = _require_db(args.out)
     items = store.list_conversations(db, platform=args.platform, month=args.month,
                                      order=args.order, limit=args.limit,
-                                     offset=args.offset)
-    total = store.count_conversations(db, platform=args.platform, month=args.month)
+                                     offset=args.offset, project=args.project)
+    total = store.count_conversations(db, platform=args.platform, month=args.month,
+                                      project=args.project)
     if args.json:
         print(json.dumps(
-            {"platform": args.platform, "month": args.month, "order": args.order,
+            {"platform": args.platform, "month": args.month, "project": args.project,
+             "order": args.order,
              "limit": args.limit, "offset": args.offset,
              "total": total, "count": len(items), "items": items},
             ensure_ascii=False))
@@ -111,7 +148,7 @@ def cmd_list(args) -> None:
     for c in items:
         print(f"[{c['platform']:<7} {_fmt_time(c['create_time'])}] "
               f"msgs={c['n_messages']:<4} {c['title'] or '（無標題）'}")
-        print(f"    └ {c['id']}")
+        print(f"    └ {c['id']}" + (f"  ({c['cwd']})" if c["cwd"] else ""))
     shown = args.offset + len(items)
     print(f"— 顯示 {args.offset + 1}–{shown} / 共 {total} 段 —")
 
@@ -264,6 +301,9 @@ def main(argv=None) -> None:
     p = argparse.ArgumentParser(prog="ai_archive")
     p.add_argument("--data", default=_DEFAULT_DATA, help="原始匯出資料夾 (預設: data)")
     p.add_argument("--out", default=_DEFAULT_OUT, help="輸出資料夾 (預設: out)")
+    p.add_argument("--max-age", type=float, default=None, metavar="MIN",
+                   help="list/search/get/stats 前，若 archive.db 超過 MIN 分鐘未更新就先重跑 "
+                        "ingest（預設不自動更新）")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     pi = sub.add_parser("ingest", help="解析各平台 → normalized.jsonl + archive.db")
@@ -285,12 +325,15 @@ def main(argv=None) -> None:
     ps = sub.add_parser("search", help="全文檢索")
     ps.add_argument("query")
     ps.add_argument("--limit", type=int, default=10)
+    ps.add_argument("--project", help="只搜工作目錄(cwd)含此子字串的對話 (claude/codex)")
+    ps.add_argument("--json", action="store_true", help="輸出 JSON (給 agent 解析)")
     ps.set_defaults(func=cmd_search)
 
     pl = sub.add_parser("list", help="對話清單 (list/filter/order，唯讀，可 --json)")
     pl.add_argument("--platform", choices=list(REGISTRY),
                     help="只列指定平台 (預設全部)")
     pl.add_argument("--month", help="只列某月 YYYY-MM (依 create_time，本地時區)")
+    pl.add_argument("--project", help="只列工作目錄(cwd)含此子字串的對話 (claude/codex)")
     pl.add_argument("--order", choices=["recent", "oldest"], default="recent",
                     help="排序 (預設 recent)")
     pl.add_argument("--limit", type=int, default=30)
@@ -348,6 +391,8 @@ def main(argv=None) -> None:
     pw.set_defaults(func=cmd_web)
 
     args = p.parse_args(argv)
+    if args.max_age is not None and args.cmd in ("list", "search", "get", "stats"):
+        _refresh_if_stale(args)
     args.func(args)
 
 

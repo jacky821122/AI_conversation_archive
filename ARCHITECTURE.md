@@ -76,6 +76,7 @@ out/threads.json       Gemini session 還原 overlay
   "title": "...",
   "create_time": 1234567890.0,   // epoch 秒
   "update_time": 1234567890.0,
+  "cwd": "/path/to/repo",        // 選填；只有本機 agent 平台（claude/codex）有，取自紀錄本身
   "messages": [
     {"role": "user", "text": "...", "time": 1234567890.0, "attachments": []}
   ]
@@ -86,14 +87,21 @@ out/threads.json       Gemini session 還原 overlay
 
 `list` / `get` 是 `store.list_conversations` / `get_conversation` 的 CLI 薄殼（與
 `/api/conversations*` 同源），純 stdlib、零外連、不載模型。`--json` 給程式解析，欄位同
-`conversations` 表：`id`／`platform`／`title`／`create_time`／`update_time`／`n_messages`。
+`conversations` 表：`id`／`platform`／`title`／`create_time`／`update_time`／`n_messages`／`cwd`。
 
 ```
 list --json  → {platform, month, order, limit, offset, total, count, items:[<上述欄位>]}
 get  --json  → {<上述欄位>, messages:[{idx, role, text, time}]}   // 依 idx 排序
+search --json → {query, project, count, items:[{conv_id, idx, role, text, time, platform, title, cwd}]}
 ```
 
-`list` filter：`--platform`／`--month`(YYYY-MM)／`--order`(recent|oldest)／`--limit`／`--offset`。
+`list` filter：`--platform`／`--month`(YYYY-MM)／`--project`／`--order`(recent|oldest)／`--limit`／`--offset`。
+`--project` 是對 `cwd` 的子字串比對（不是資料夾名：Claude 的資料夾名是 cwd slug 化的結果、無法
+還原，所以 parser 直接取紀錄裡的原始 cwd）。匯出型平台沒有 cwd，帶 `--project` 時自然被排除。
+
+**新鮮度**：全域 `--max-age N` 讓讀取指令在 `archive.db` 超過 N 分鐘時先重跑 ingest——給 agent
+「查之前順便更新」，免排程（排程在關機/睡眠時會漏跑且不補）。ingest 先寫暫存檔再 `os.replace`，
+並行的讀取端或另一個 ingest 只會看到完整的舊庫或新庫。預設不開，公開碼行為不變。
 `id` 即 `<platform>:<原生 id>`，是跨指令的穩定 handle（`list`/`search` 結果 → 餵 `get`）。
 
 ## 平台

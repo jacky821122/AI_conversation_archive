@@ -16,8 +16,8 @@ from typing import Iterable
 from .schema import Conversation
 
 # DB schema 版本。每次改動 messages/conversations 結構就 +1，讓舊 DB 能被偵測。
-# 1 = 含 messages.attachments 欄位。
-SCHEMA_VERSION = 1
+# 1 = 含 messages.attachments 欄位。2 = 含 conversations.cwd（本機 agent 工作目錄）。
+SCHEMA_VERSION = 2
 
 _SCHEMA = """
 CREATE TABLE conversations (
@@ -26,7 +26,8 @@ CREATE TABLE conversations (
     title       TEXT,
     create_time REAL,
     update_time REAL,
-    n_messages  INTEGER NOT NULL
+    n_messages  INTEGER NOT NULL,
+    cwd         TEXT
 );
 CREATE TABLE messages (
     rowid    INTEGER PRIMARY KEY,
@@ -78,9 +79,9 @@ def build(convs: Iterable[Conversation], db_path: str) -> dict:
         per_platform: dict[str, int] = {}
         for c in _dedupe(convs):
             con.execute(
-                "INSERT INTO conversations VALUES (?,?,?,?,?,?)",
+                "INSERT INTO conversations VALUES (?,?,?,?,?,?,?)",
                 (c.id, c.platform, c.title, c.create_time, c.update_time,
-                 len(c.messages)),
+                 len(c.messages), c.cwd),
             )
             for i, m in enumerate(c.messages):
                 con.execute(
@@ -146,14 +147,15 @@ def _fts_or_query(query: str) -> str | None:
 
 
 def search(db_path: str, query: str, platform: str | None = None,
-           limit: int = 10, offset: int = 0, mode: str = "phrase") -> list[dict]:
+           limit: int = 10, offset: int = 0, mode: str = "phrase",
+           project: str | None = None) -> list[dict]:
     """回傳命中訊息（含所屬對話脈絡）。
 
     mode="phrase"（預設，給 web/CLI search）：整句當片語，≥3 字走 FTS5
     trigram（依 bm25 相關度升冪排序，讓前端能以「首次出現＝該對話最相關命中」
     取代表）、<3 字退回 LIKE（無相關度可算，改依 time 降冪＝最新命中優先）。
     mode="or"（給 RAG）：抽關鍵詞做 OR 檢索。
-    platform 可選做平台篩選。
+    platform 可選做平台篩選；project 以子字串比對對話的 cwd（只有本機 agent 平台有）。
     """
     query = query.strip()
     if not query:
@@ -164,14 +166,16 @@ def search(db_path: str, query: str, platform: str | None = None,
         match = _fts_query(query)
     con = sqlite3.connect(db_path)
     con.row_factory = sqlite3.Row
-    plat_clause = " AND c.platform = ?" if platform else ""
-    plat_args: tuple = (platform,) if platform else ()
+    plat_clause = (" AND c.platform = ?" if platform else "") + \
+        (" AND c.cwd LIKE ?" if project else "")
+    plat_args: tuple = ((platform,) if platform else ()) + \
+        ((f"%{project}%",) if project else ())
     try:
         if use_fts:
             rows = con.execute(
                 f"""
                 SELECT m.conv_id, m.idx, m.role, m.text, m.time,
-                       c.platform, c.title
+                       c.platform, c.title, c.cwd
                 FROM messages_fts f
                 JOIN messages m ON m.rowid = f.rowid
                 JOIN conversations c ON c.id = m.conv_id
@@ -185,7 +189,7 @@ def search(db_path: str, query: str, platform: str | None = None,
             rows = con.execute(
                 f"""
                 SELECT m.conv_id, m.idx, m.role, m.text, m.time,
-                       c.platform, c.title
+                       c.platform, c.title, c.cwd
                 FROM messages m
                 JOIN conversations c ON c.id = m.conv_id
                 WHERE m.text LIKE ?{plat_clause}
@@ -204,7 +208,7 @@ def search(db_path: str, query: str, platform: str | None = None,
 # 之後若拿掉/改名這裡列的東西，記得同步更新。
 _REQUIRED_COLUMNS = {
     "conversations": {"id", "platform", "title", "create_time",
-                      "update_time", "n_messages"},
+                      "update_time", "n_messages", "cwd"},
     "messages": {"conv_id", "idx", "role", "text", "time", "attachments"},
 }
 _REQUIRED_TABLES = ("messages_fts",)
@@ -243,7 +247,7 @@ def get_conversation(db_path: str, conv_id: str) -> dict | None:
     con.row_factory = sqlite3.Row
     try:
         c = con.execute(
-            "SELECT id, platform, title, create_time, update_time, n_messages "
+            "SELECT id, platform, title, create_time, update_time, n_messages, cwd "
             "FROM conversations WHERE id = ?", (conv_id,)
         ).fetchone()
         if c is None:
@@ -267,8 +271,9 @@ def get_conversation(db_path: str, conv_id: str) -> dict | None:
         con.close()
 
 
-def _conv_filter(platform: str | None, month: str | None) -> tuple[str, list]:
-    """組合 platform / month(YYYY-MM) 的 WHERE 子句。"""
+def _conv_filter(platform: str | None, month: str | None,
+                 project: str | None = None) -> tuple[str, list]:
+    """組合 platform / month(YYYY-MM) / project(cwd 子字串) 的 WHERE 子句。"""
     clauses: list[str] = []
     args: list = []
     if platform:
@@ -278,22 +283,26 @@ def _conv_filter(platform: str | None, month: str | None) -> tuple[str, list]:
         clauses.append(
             "strftime('%Y-%m', create_time, 'unixepoch', 'localtime') = ?")
         args.append(month)
+    if project:
+        clauses.append("cwd LIKE ?")
+        args.append(f"%{project}%")
     where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
     return where, args
 
 
 def list_conversations(db_path: str, platform: str | None = None,
                        month: str | None = None, order: str = "recent",
-                       limit: int = 30, offset: int = 0) -> list[dict]:
-    """對話層級清單（瀏覽 / 最近 / 某月）。order: recent | oldest。"""
+                       limit: int = 30, offset: int = 0,
+                       project: str | None = None) -> list[dict]:
+    """對話層級清單（瀏覽 / 最近 / 某月 / 某專案）。order: recent | oldest。"""
     con = sqlite3.connect(db_path)
     con.row_factory = sqlite3.Row
-    where, args = _conv_filter(platform, month)
+    where, args = _conv_filter(platform, month, project)
     direction = "ASC" if order == "oldest" else "DESC"
     try:
         rows = con.execute(
             f"""
-            SELECT id, platform, title, create_time, update_time, n_messages
+            SELECT id, platform, title, create_time, update_time, n_messages, cwd
             FROM conversations
             {where}
             ORDER BY COALESCE(create_time, 0) {direction}
@@ -307,9 +316,10 @@ def list_conversations(db_path: str, platform: str | None = None,
 
 
 def count_conversations(db_path: str, platform: str | None = None,
-                        month: str | None = None) -> int:
+                        month: str | None = None,
+                        project: str | None = None) -> int:
     con = sqlite3.connect(db_path)
-    where, args = _conv_filter(platform, month)
+    where, args = _conv_filter(platform, month, project)
     try:
         return con.execute(
             f"SELECT count(*) FROM conversations {where}", args

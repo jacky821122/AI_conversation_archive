@@ -67,6 +67,7 @@ def _text(content, role: str) -> str:
 
 def _parse_file(path: str) -> Conversation | None:
     session_id = None
+    cwd = None
     responses: dict[str, list[tuple[int, Message]]] = {"user": [], "assistant": []}
     events: dict[str, list[tuple[int, Message]]] = {"user": [], "assistant": []}
     replies: list[tuple[int, Message]] = []
@@ -92,6 +93,7 @@ def _parse_file(path: str) -> Conversation | None:
                 ):
                     return None
                 session_id = payload.get("id") or payload.get("session_id")
+                cwd = payload.get("cwd") if isinstance(payload.get("cwd"), str) else None
                 continue
             if record_type == "event_msg" and payload.get("type") == "task_started":
                 imported = str(payload.get("turn_id") or "").startswith("external-import")
@@ -155,7 +157,7 @@ def _parse_file(path: str) -> Conversation | None:
         title=users[0][1].text.replace("\n", " ")[:60],
         create_time=min(times) if times else None,
         update_time=max(times) if times else None,
-        messages=messages,
+        messages=messages, cwd=cwd,
     )
 
 

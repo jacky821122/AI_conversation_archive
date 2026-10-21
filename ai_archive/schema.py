@@ -44,9 +44,10 @@ class Conversation:
     create_time: float | None
     update_time: float | None
     messages: list[Message] = field(default_factory=list)
+    cwd: str | None = None  # 本機 agent（claude/codex）的工作目錄；匯出型平台沒有
 
     def to_dict(self) -> dict:
-        return {
+        d = {
             "id": self.id,
             "platform": self.platform,
             "title": self.title,
@@ -54,6 +55,9 @@ class Conversation:
             "update_time": self.update_time,
             "messages": [m.to_dict() for m in self.messages],
         }
+        if self.cwd:
+            d["cwd"] = self.cwd
+        return d
 
     @classmethod
     def from_dict(cls, d: dict) -> "Conversation":
@@ -64,6 +68,7 @@ class Conversation:
             create_time=d.get("create_time"),
             update_time=d.get("update_time"),
             messages=[Message.from_dict(m) for m in d.get("messages", [])],
+            cwd=d.get("cwd"),
         )
 
 

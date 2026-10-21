@@ -50,16 +50,20 @@ Codex 也直接讀本機：預設掃描 `$CODEX_HOME`（未設定則 `~/.codex`�
 python -m ai_archive.cli ingest            # 解析所有平台 → normalized.jsonl + archive.db
 python -m ai_archive.cli stitch            # Gemini session 還原 → out/threads.json
 python -m ai_archive.cli index             # 建向量索引 out/vectors.db（需 RAG 依賴）
-python -m ai_archive.cli list               # 對話清單（--platform/--month/--order/--limit/--offset，可 --json）
+python -m ai_archive.cli list               # 對話清單（--platform/--month/--project/--order/--limit/--offset，可 --json）
 python -m ai_archive.cli get "<conv_id>"    # 取單段對話全文（可 --json）
-python -m ai_archive.cli search "<關鍵字>"  # 全文檢索（中文可用）
+python -m ai_archive.cli search "<關鍵字>"  # 全文檢索（中文可用；--project 篩專案，可 --json）
 python -m ai_archive.cli search-dense "<q>" # 語意檢索（本地向量，不花 API）
 python -m ai_archive.cli ask "<問題>"       # RAG 問答（本地檢索 → 生成端附出處）
 python -m ai_archive.cli stats             # 資料庫統計
 python -m ai_archive.cli web               # 啟動 localhost web 介面
 ```
 
-可選全域旗標：`--data <dir>`（預設 `data`）、`--out <dir>`（預設 `out`）。
+可選全域旗標：`--data <dir>`（預設 `data`）、`--out <dir>`（預設 `out`）、
+`--max-age <分鐘>`（`list`/`search`/`get`/`stats` 前若 `archive.db` 超過該分鐘數未更新，
+先自動跑一次全平台 `ingest`；不給就不自動更新）。
+`--project <子字串>`：只取工作目錄（cwd）含該字串的 Claude Code / Codex 對話，例如
+`--max-age 60 search "ECC" --project my-repo --json`。
 `ingest` 專屬：`--platforms chatgpt grok`（只處理指定平台）、`--claude-path <dir>`、
 `--claude-exclude-prompts '<前綴1,前綴2>'`（依首則 user 訊息前綴排除 headless 噪音 session）。
 Codex 對應旗標為 `--codex-path <dir>`、`--codex-exclude-prompts '<前綴1,前綴2>'`。

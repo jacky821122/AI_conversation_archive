@@ -109,6 +109,7 @@ def _queued_prompt(rec: dict) -> tuple[str, str] | None:
 def _parse_file(path: str) -> Conversation | None:
     session_id = os.path.splitext(os.path.basename(path))[0]
     messages: list[Message] = []
+    cwd = None
     with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -118,6 +119,9 @@ def _parse_file(path: str) -> Conversation | None:
                 rec = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            # 資料夾名是 cwd slug 化後的結果、無法還原；記錄本身帶原始 cwd，取第一筆
+            if cwd is None and isinstance(rec.get("cwd"), str):
+                cwd = rec["cwd"]
             queued = _queued_prompt(rec)
             if queued is not None:
                 # 排隊送出的真人發言；沒有對應的 type=="user" 記錄，這裡是唯一來源
@@ -164,6 +168,7 @@ def _parse_file(path: str) -> Conversation | None:
         create_time=min(times) if times else None,
         update_time=max(times) if times else None,
         messages=messages,
+        cwd=cwd,
     )
 
 
