@@ -110,7 +110,9 @@ def _parse_file(path: str) -> Conversation | None:
     session_id = os.path.splitext(os.path.basename(path))[0]
     messages: list[Message] = []
     cwd = None
-    with open(path, encoding="utf-8") as f:
+    # errors="replace"：寫到一半就斷掉的 session 可能截在多位元組字元中間，
+    # 替換後該行 JSON 解析失敗會被下面跳過，不會讓整次 ingest 崩潰
+    with open(path, encoding="utf-8", errors="replace") as f:
         for line in f:
             line = line.strip()
             if not line:

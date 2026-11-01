@@ -74,7 +74,9 @@ def _parse_file(path: str) -> Conversation | None:
     # /import 把其他 agent（如 Claude Code）的舊 session 複製成 external-import-turn-*，
     # 時間是匯入當下；這些是別的平台的重複副本，只保留匯入後真正在 Codex 進行的回合。
     imported = False
-    with open(path, encoding="utf-8") as stream:
+    # errors="replace"：寫到一半就斷掉的 rollout 可能截在多位元組字元中間，
+    # 替換後該行 JSON 解析失敗會被下面跳過，不會讓整次 ingest 崩潰
+    with open(path, encoding="utf-8", errors="replace") as stream:
         for position, line in enumerate(stream):
             try:
                 record = json.loads(line)
